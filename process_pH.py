@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QMainWindow,
     QFileDialog,
     QPushButton,
@@ -21,10 +22,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 mpl.use("Qt5Agg")
 
 # NEXT STEP:
-# - plot temperature and salinity lines
-# --- see https://www.pythonguis.com/tutorials/pyside-plotting-matplotlib/
 # THEN:
-# - allow identification of tris and +20 samples (and other types?)
+# - allow identification of +20 samples (and other types?)
 # - add tab for looking at individual samples and selecting good points
 # - results export
 # - code generation / save state
@@ -58,6 +57,7 @@ class MainWindow(QMainWindow):
         # Initialise
         super().__init__()
         self.setWindowTitle("Spectro pH processing")
+        # === SAMPLES TAB ==============================================================
         # Button to import results file
         button_openFile = QPushButton("Import results file")
         button_openFile.released.connect(self.open_file)
@@ -68,7 +68,12 @@ class MainWindow(QMainWindow):
         # Plot of one-per-sample information
         self.fig_pH = MplCanvas(self, width=6, height=9, dpi=100, nrows=3, sharex=True)
         self.fig_pH_nav = NavigationToolbar2QT(self.fig_pH, self)
-        # Assemble layout
+        # === MEASUREMENTS TAB =========================================================
+        # Data for the given sample
+        self.measurements_list = QVBoxLayout()
+        w_measurements_list = QWidget()
+        w_measurements_list.setLayout(self.measurements_list)
+        # === ASSEMBLE LAYOUT ==========================================================
         # - Samples table column
         ly_samples_table = QVBoxLayout()
         ly_samples_table.addWidget(button_openFile)
@@ -93,7 +98,7 @@ class MainWindow(QMainWindow):
         tabs.setTabPosition(QTabWidget.West)
         tabs.setMovable(True)
         tabs.addTab(w_samples, "Samples")
-        tabs.addTab(QWidget(), "Measurements")
+        tabs.addTab(w_measurements_list, "Measurements")
         self.setCentralWidget(tabs)
 
     def open_file(self):
@@ -201,6 +206,18 @@ class MainWindow(QMainWindow):
             )
             # Draw plots
             self.plot_pH()
+            # Add data for first sample to measurements tab
+            self.measurements_list.addWidget(QLabel(self.samples.index[0]))
+            L = self.data.sample_name == self.samples.index[0]
+            for pH in self.data.pH[L]:
+                ly = QHBoxLayout()
+                ly.addWidget(QLabel("{:.4f}".format(pH)))
+                check = QCheckBox()  # TODO link this to self.data.pH_good
+                check.setChecked(True)
+                ly.addWidget(check)
+                w = QWidget()
+                w.setLayout(ly)
+                self.measurements_list.addWidget(w)
 
     def plot_pH(self):
         ax = self.fig_pH.ax[0]
@@ -295,7 +312,7 @@ class MainWindow(QMainWindow):
                 r, self.col_pH_expected, QTableWidgetItem(pH_expected)
             )
         # Update pH in GUI table if necessary
-        if c in [self.col_salinity, self.col_temperature, self.col_pH]:
+        if c in [self.col_salinity, self.col_temperature, self.col_pH, self.col_pH_std]:
             self.samples_table.setItem(
                 r,
                 self.col_pH,

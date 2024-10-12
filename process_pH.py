@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QLabel,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
 )
@@ -87,7 +88,13 @@ class MainWindow(QMainWindow):
         ly_samples.addWidget(w_samples_plot)
         w_samples = QWidget()
         w_samples.setLayout(ly_samples)
-        self.setCentralWidget(w_samples)
+        # Tabs
+        tabs = QTabWidget()
+        tabs.setTabPosition(QTabWidget.West)
+        tabs.setMovable(True)
+        tabs.addTab(w_samples, "Samples")
+        tabs.addTab(QWidget(), "Measurements")
+        self.setCentralWidget(tabs)
 
     def open_file(self):
         # Open file dialog
@@ -104,6 +111,7 @@ class MainWindow(QMainWindow):
                 temperature=self.data.temperature,
                 salinity=self.data.salinity,
             )
+            self.data["pH_good"] = True
 
             # Get one-per-sample table
             def _get_samples(sample):
@@ -112,7 +120,9 @@ class MainWindow(QMainWindow):
                         "salinity": sample.salinity.mean(),
                         "temperature": sample.temperature.mean(),
                         "pH": sample.pH.mean(),
+                        "pH_std": sample.pH[sample.pH_good].std(),
                         "pH_count": sample.pH.size,
+                        "pH_good": sample.pH_good.sum(),
                     }
                 )
 
@@ -137,17 +147,27 @@ class MainWindow(QMainWindow):
             # Populate filename and GUI samples table
             self.currently_open_file.setText("Current file: {}".format(filename[0]))
             self.samples_table.setRowCount(self.samples.shape[0])
-            self.samples_table.setColumnCount(6)
+            self.samples_table.setColumnCount(7)
             self.samples_table.setHorizontalHeaderLabels(
                 [
                     "Type",
                     "Sample name",
                     "Salinity",
                     "Temperature / °C",
-                    "pH (total)",
-                    "pH expected",
+                    "pH",
+                    "SD(pH)",
+                    "Expected pH",
                 ]
             )
+            # Assign column numbers
+            self.col_sample_type = 0
+            self.col_sample_name = 1
+            self.col_salinity = 2
+            self.col_temperature = 3
+            self.col_pH = 4
+            self.col_pH_std = 5
+            self.col_pH_expected = 6
+            # Loop through samples and set values in GUI table
             for i, (sample, row) in enumerate(self.samples.iterrows()):
                 if row.is_tris:
                     sample_type = "Tris"
@@ -155,14 +175,27 @@ class MainWindow(QMainWindow):
                 else:
                     sample_type = "Sample"
                     pH_expected = ""
-                self.samples_table.setItem(i, 0, QTableWidgetItem(sample_type))
-                self.samples_table.setItem(i, 1, QTableWidgetItem(sample))
-                self.samples_table.setItem(i, 2, QTableWidgetItem(str(row.salinity)))
-                self.samples_table.setItem(i, 3, QTableWidgetItem(str(row.temperature)))
                 self.samples_table.setItem(
-                    i, 4, QTableWidgetItem("{:.4f}".format(row.pH))
+                    i, self.col_sample_type, QTableWidgetItem(sample_type)
                 )
-                self.samples_table.setItem(i, 5, QTableWidgetItem(pH_expected))
+                self.samples_table.setItem(
+                    i, self.col_sample_name, QTableWidgetItem(sample)
+                )
+                self.samples_table.setItem(
+                    i, self.col_salinity, QTableWidgetItem(str(row.salinity))
+                )
+                self.samples_table.setItem(
+                    i, self.col_temperature, QTableWidgetItem(str(row.temperature))
+                )
+                self.samples_table.setItem(
+                    i, self.col_pH, QTableWidgetItem("{:.4f}".format(row.pH))
+                )
+                self.samples_table.setItem(
+                    i, self.col_pH_std, QTableWidgetItem("{:.4f}".format(row.pH_std))
+                )
+                self.samples_table.setItem(
+                    i, self.col_pH_expected, QTableWidgetItem(pH_expected)
+                )
             self.cx_table_updater = self.samples_table.cellChanged.connect(
                 self.update_samples_table
             )
@@ -182,7 +215,7 @@ class MainWindow(QMainWindow):
         )
         ax.scatter(
             self.data.number,
-            self.data.pH,
+            self.data.pH[self.data.pH_good],
             s=10,
             c="xkcd:dark",
             alpha=0.8,
@@ -214,18 +247,19 @@ class MainWindow(QMainWindow):
         v = self.samples_table.item(r, c).data(0)
         L = self.data.sample_name == self.samples.index[r]
         ix = self.samples.index[r]
-        if c == 0:  # edit sample type in samples
+        if c == self.col_sample_type:  # edit sample type in samples
             self.samples.loc[ix, "is_tris"] = v.upper() in ["TRIS", "T"]
-        if c == 1:  # edit sample name in data and samples
+        if c == self.col_sample_name:  # edit sample name in data and samples
             self.data.loc[L, "sample_name"] = v
             self.samples.rename(index={ix: v}, inplace=True)
-        elif c == 2:  # edit salinity in data and samples
+        elif c == self.col_salinity:  # edit salinity in data and samples
             self.data.loc[L, "salinity"] = float(v)
             self.samples.loc[ix, "salinity"] = float(v)
-        elif c == 3:  # edit temperature in data and samples
+        elif c == self.col_temperature:  # edit temperature in data and samples
             self.data.loc[L, "temperature"] = float(v)
             self.samples.loc[ix, "temperature"] = float(v)
-        if c in [2, 3]:  # if salinity or temperature edited, recalculate pH
+        # If salinity or temperature edited, recalculate pH
+        if c in [self.col_salinity, self.col_temperature]:
             self.data.loc[L, "pH"] = ks.spectro.pH_NIOZ(
                 self.data.loc[L, "abs578"],
                 self.data.loc[L, "abs434"],
@@ -234,7 +268,9 @@ class MainWindow(QMainWindow):
                 salinity=self.data.loc[L, "salinity"],
             )
             self.samples.loc[ix, "pH"] = self.data.loc[L, "pH"].mean()
-        if c in [0, 3]:  # if type or temperature edited, recalculate pH_tris_expected
+            self.samples.loc[ix, "pH_std"] = self.data.loc[L, "pH"].std()
+        # If type or temperature edited, recalculate pH_tris_expected
+        if c in [self.col_sample_type, self.col_temperature]:
             if self.samples.loc[ix, "is_tris"]:
                 self.samples.loc[ix, "pH_tris_expected"] = ks.pH_tris_DD98(
                     temperature=self.samples.loc[ix, "temperature"],
@@ -244,22 +280,31 @@ class MainWindow(QMainWindow):
                 self.samples.loc[ix, "pH_tris_expected"] = np.nan
         # We have to dis- & re-connect the cellChanged signal to prevent recursion
         self.samples_table.cellChanged.disconnect(self.cx_table_updater)
-        if c in [
-            0,
-            3,
-            5,
-        ]:  # update sample type and pH_expected in GUI table if necessary
+        # Update sample type and pH_expected in GUI table if necessary
+        if c in [self.col_sample_type, self.col_temperature, self.col_pH_expected]:
             if self.samples.loc[ix, "is_tris"]:
                 sample_type = "Tris"
                 pH_expected = "{:.4f}".format(self.samples.loc[ix].pH_tris_expected)
             else:
                 sample_type = "Sample"
                 pH_expected = ""
-            self.samples_table.setItem(r, 0, QTableWidgetItem(sample_type))
-            self.samples_table.setItem(r, 5, QTableWidgetItem(pH_expected))
-        if c in [2, 3, 4]:  # update pH in GUI table if necessary
             self.samples_table.setItem(
-                r, 4, QTableWidgetItem("{:.4f}".format(self.samples.loc[ix].pH))
+                r, self.col_sample_type, QTableWidgetItem(sample_type)
+            )
+            self.samples_table.setItem(
+                r, self.col_pH_expected, QTableWidgetItem(pH_expected)
+            )
+        # Update pH in GUI table if necessary
+        if c in [self.col_salinity, self.col_temperature, self.col_pH]:
+            self.samples_table.setItem(
+                r,
+                self.col_pH,
+                QTableWidgetItem("{:.4f}".format(self.samples.loc[ix].pH)),
+            )
+            self.samples_table.setItem(
+                r,
+                self.col_pH_std,
+                QTableWidgetItem("{:.4f}".format(self.samples.loc[ix].pH_std)),
             )
         # Re-connect here
         self.cx_table_updater = self.samples_table.cellChanged.connect(

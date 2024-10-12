@@ -66,9 +66,14 @@ class MainWindow(QMainWindow):
         # Table with one-per-sample information
         self.samples_table = QTableWidget()
         # Plot of one-per-sample information
-        self.fig_pH = MplCanvas(self, width=6, height=9, dpi=100, nrows=3, sharex=True)
-        self.fig_pH_nav = NavigationToolbar2QT(self.fig_pH, self)
+        self.fig_samples = MplCanvas(
+            self, width=6, height=9, dpi=100, nrows=3, sharex=True
+        )
+        self.fig_samples_nav = NavigationToolbar2QT(self.fig_samples, self)
         # === MEASUREMENTS TAB =========================================================
+        # Plot of the sample's data points
+        self.fig_measurements = MplCanvas(self, dpi=100)
+        self.fig_measurements_nav = NavigationToolbar2QT(self.fig_measurements, self)
         # Data for the given sample
         self.measurements_list = QVBoxLayout()
         w_measurements_list = QWidget()
@@ -83,8 +88,8 @@ class MainWindow(QMainWindow):
         w_samples_table.setLayout(ly_samples_table)
         # - Samples plot column
         ly_samples_plot = QVBoxLayout()
-        ly_samples_plot.addWidget(self.fig_pH_nav)
-        ly_samples_plot.addWidget(self.fig_pH)
+        ly_samples_plot.addWidget(self.fig_samples_nav)
+        ly_samples_plot.addWidget(self.fig_samples)
         w_samples_plot = QWidget()
         w_samples_plot.setLayout(ly_samples_plot)
         # - Samples tab
@@ -93,12 +98,19 @@ class MainWindow(QMainWindow):
         ly_samples.addWidget(w_samples_plot)
         w_samples = QWidget()
         w_samples.setLayout(ly_samples)
+        # - Measurements tab
+        ly_measurements = QVBoxLayout()
+        ly_measurements.addWidget(self.fig_measurements_nav)
+        ly_measurements.addWidget(self.fig_measurements)
+        ly_measurements.addWidget(w_measurements_list)
+        w_measurements = QWidget()
+        w_measurements.setLayout(ly_measurements)
         # Tabs
         tabs = QTabWidget()
         tabs.setTabPosition(QTabWidget.West)
-        tabs.setMovable(True)
+        # tabs.setMovable(True)
         tabs.addTab(w_samples, "Samples")
-        tabs.addTab(w_measurements_list, "Measurements")
+        tabs.addTab(w_measurements, "Measurements")
         self.setCentralWidget(tabs)
 
     def open_file(self):
@@ -205,22 +217,44 @@ class MainWindow(QMainWindow):
                 self.update_samples_table
             )
             # Draw plots
-            self.plot_pH()
+            self.plot_samples()
             # Add data for first sample to measurements tab
-            self.measurements_list.addWidget(QLabel(self.samples.index[0]))
-            L = self.data.sample_name == self.samples.index[0]
-            for pH in self.data.pH[L]:
-                ly = QHBoxLayout()
-                ly.addWidget(QLabel("{:.4f}".format(pH)))
-                check = QCheckBox()  # TODO link this to self.data.pH_good
-                check.setChecked(True)
-                ly.addWidget(check)
-                w = QWidget()
-                w.setLayout(ly)
-                self.measurements_list.addWidget(w)
+            self.m_which_sample = 0
+            self.update_sample_measurements()
 
-    def plot_pH(self):
-        ax = self.fig_pH.ax[0]
+    def update_sample_measurements(self):
+        # These first two lines clear the layout --- taken from
+        # https://stackoverflow.com/questions/4528347/clear-all-widgets-in-a-layout-in-pyqt
+        for i in reversed(range(self.measurements_list.count())):
+            self.measurements_list.itemAt(i).widget().setParent(None)
+        # Now add the new info
+        ix = self.samples.index[self.m_which_sample]
+        self.sample_name_measurements = QLabel(
+            "Sample: {}\nSalinity = {}, temperature = {} °C".format(
+                ix,
+                self.samples.loc[ix].salinity,
+                self.samples.loc[ix].temperature,
+            )
+        )  # also add pH and ± etc. here
+        self.measurements_list.addWidget(self.sample_name_measurements)
+        L = self.data.sample_name == self.samples.index[self.m_which_sample]
+        self.sample_pH_good = {}
+        for j, (i, row) in enumerate(self.data[L].iterrows()):
+            ly = QHBoxLayout()
+            self.sample_pH_good[i] = (
+                QCheckBox()
+            )  # TODO connect this to self.data.pH_good
+            self.sample_pH_good[i].setChecked(row.pH_good)
+            ly.addWidget(self.sample_pH_good[i])
+            ly.addWidget(QLabel("({}) {:.4f}".format(j + 1, row.pH)))
+            w = QWidget()
+            w.setLayout(ly)
+            self.measurements_list.addWidget(w)
+            # TODO also add option to move measurement to a different sample
+            # (only needs to be the previous or the next)
+
+    def plot_samples(self):
+        ax = self.fig_samples.ax[0]
         ax.cla()
         ax.scatter(self.samples.number, self.samples.pH, s=50, c="xkcd:pale purple")
         ax.scatter(
@@ -242,25 +276,26 @@ class MainWindow(QMainWindow):
         ax.set_xticks(self.samples.number)
         ax.set_xticklabels(self.samples.index, rotation=-90)
         ax.tick_params(top=True, labeltop=True, bottom=True, labelbottom=False)
-        ax = self.fig_pH.ax[1]
+        ax = self.fig_samples.ax[1]
         ax.cla()
         ax.scatter(self.samples.number, self.samples.salinity, s=50, c="xkcd:sage")
         ax.set_ylabel("Salinity")
         ax.set_xticks(self.samples.number)
         ax.tick_params(top=True, labeltop=False, bottom=True, labelbottom=False)
-        ax = self.fig_pH.ax[2]
+        ax = self.fig_samples.ax[2]
         ax.cla()
         ax.scatter(self.samples.number, self.samples.temperature, c="xkcd:coral")
         ax.set_ylabel("Temperature / °C")
         ax.set_xticks(self.samples.number)
         ax.set_xticklabels(self.samples.index, rotation=-90)
         ax.tick_params(top=True, labeltop=False, bottom=True, labelbottom=True)
-        for ax in self.fig_pH.ax:
+        for ax in self.fig_samples.ax:
             ax.grid(alpha=0.2)
-        self.fig_pH.fig.tight_layout()
-        self.fig_pH.draw()
+        self.fig_samples.fig.tight_layout()
+        self.fig_samples.draw()
 
     def update_samples_table(self, r, c):
+        # Triggered when user changes the samples table
         v = self.samples_table.item(r, c).data(0)
         L = self.data.sample_name == self.samples.index[r]
         ix = self.samples.index[r]
@@ -269,6 +304,7 @@ class MainWindow(QMainWindow):
         if c == self.col_sample_name:  # edit sample name in data and samples
             self.data.loc[L, "sample_name"] = v
             self.samples.rename(index={ix: v}, inplace=True)
+            self.update_sample_measurements()
         elif c == self.col_salinity:  # edit salinity in data and samples
             self.data.loc[L, "salinity"] = float(v)
             self.samples.loc[ix, "salinity"] = float(v)
@@ -323,12 +359,13 @@ class MainWindow(QMainWindow):
                 self.col_pH_std,
                 QTableWidgetItem("{:.4f}".format(self.samples.loc[ix].pH_std)),
             )
+            self.update_sample_measurements()
         # Re-connect here
         self.cx_table_updater = self.samples_table.cellChanged.connect(
             self.update_samples_table
         )
         # Update plots
-        self.plot_pH()
+        self.plot_samples()
 
 
 app = QApplication([])

@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -131,6 +132,8 @@ class MainWindow(QMainWindow):
             self.data["pH_good"] = True
 
             # Get one-per-sample table
+            # TODO make sure final table has same order as data
+            # TODO don't group samples that have same name but are different
             def _get_samples(sample):
                 return pd.Series(
                     {
@@ -229,29 +232,69 @@ class MainWindow(QMainWindow):
             self.measurements_list.itemAt(i).widget().setParent(None)
         # Now add the new info
         ix = self.samples.index[self.m_which_sample]
-        self.sample_name_measurements = QLabel(
-            "Sample: {}\nSalinity = {}, temperature = {} °C".format(
-                ix,
-                self.samples.loc[ix].salinity,
-                self.samples.loc[ix].temperature,
-            )
-        )  # also add pH and ± etc. here
-        self.measurements_list.addWidget(self.sample_name_measurements)
+        # Add general info about sample
+        for info in [
+            "Sample: {}".format(ix),
+            "Salinity = {}".format(self.samples.loc[ix].salinity),
+            "Temperature = {} °C".format(self.samples.loc[ix].temperature),
+            "pH = {:.4f} ± {:.4f}".format(
+                self.samples.loc[ix].pH, self.samples.loc[ix].pH_std
+            ),
+        ]:
+            self.measurements_list.addWidget(QLabel(info))
+        # Add individual measurements from sample
         L = self.data.sample_name == self.samples.index[self.m_which_sample]
         self.sample_pH_good = {}
-        for j, (i, row) in enumerate(self.data[L].iterrows()):
+        for j, (jx, row) in enumerate(self.data[L].iterrows()):
             ly = QHBoxLayout()
-            self.sample_pH_good[i] = (
-                QCheckBox()
-            )  # TODO connect this to self.data.pH_good
-            self.sample_pH_good[i].setChecked(row.pH_good)
-            ly.addWidget(self.sample_pH_good[i])
+            self.sample_pH_good[jx] = QCheckBox()
+            self.sample_pH_good[jx].setChecked(row.pH_good)
+
+            def pH_good_or_bad(state, jx=jx):
+                self.data.loc[jx, "pH_good"] = state == Qt.CheckState.Checked
+                self.samples.loc[ix, "pH"] = self.data[L & self.data.pH_good].pH.mean()
+                self.samples.loc[ix, "pH_std"] = self.data[
+                    L & self.data.pH_good
+                ].pH.std()
+                self.plot_measurements()
+                # self.plot_samples()  # causes segmentation fault?!
+                # self.update_samples_table(ix, self.col_pH)
+
+            self.sample_pH_good[jx].checkStateChanged.connect(pH_good_or_bad)
+            ly.addStretch()
+            ly.addWidget(self.sample_pH_good[jx])
             ly.addWidget(QLabel("({}) {:.4f}".format(j + 1, row.pH)))
+            ly.addStretch()
             w = QWidget()
             w.setLayout(ly)
             self.measurements_list.addWidget(w)
             # TODO also add option to move measurement to a different sample
             # (only needs to be the previous or the next)
+        self.measurements_list.addStretch()
+        self.plot_measurements()
+
+    # def pH_good_or_bad(self, state, jx=None):
+    #     print(state)
+    #     print(jx)
+
+    def plot_measurements(self):
+        ax = self.fig_measurements.ax
+        ax.cla()
+        L = self.data.sample_name == self.samples.index[self.m_which_sample]
+        Lg = L & self.data.pH_good
+        Lb = L & ~self.data.pH_good
+        fx = 1 + np.arange(L.sum())
+        Lx = self.data.pH_good[L].values
+        ix = self.samples.index[self.m_which_sample]
+        ax.scatter(fx[Lx], self.data.pH[Lg])
+        ax.scatter(fx[~Lx], self.data.pH[Lb], marker="x")
+        ax.axhline(self.samples.loc[ix].pH)
+        ax.set_xticks(fx)
+        ax.grid(alpha=0.2)
+        ax.set_xlabel("Measurement number")
+        ax.set_ylabel("pH (total scale)")
+        self.fig_measurements.fig.tight_layout()
+        self.fig_measurements.draw()
 
     def plot_samples(self):
         ax = self.fig_samples.ax[0]

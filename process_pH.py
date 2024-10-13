@@ -109,12 +109,8 @@ class MainWindow(QMainWindow):
         # Tabs
         tabs = QTabWidget()
         tabs.setTabPosition(QTabWidget.West)
-        # tabs.setMovable(True)
         tabs.addTab(w_samples, "Samples")
         tabs.addTab(w_measurements, "Measurements")
-        tabs.tabBarClicked.connect(
-            lambda x: print(x)
-        )  # use this to redraw each time tab switches
         self.setCentralWidget(tabs)
 
     def open_file(self):
@@ -236,15 +232,19 @@ class MainWindow(QMainWindow):
         # Now add the new info
         ix = self.samples.index[self.m_which_sample]
         # Add general info about sample
-        for info in [
-            "Sample: {}".format(ix),
-            "Salinity = {}".format(self.samples.loc[ix].salinity),
-            "Temperature = {} °C".format(self.samples.loc[ix].temperature),
-            "pH = {:.4f} ± {:.4f}".format(
+        self.info_labels = {}
+        for info, label in {
+            "sample": "Sample: {}".format(ix),
+            "salinity": "Salinity = {}".format(self.samples.loc[ix].salinity),
+            "temperature": "Temperature = {} °C".format(
+                self.samples.loc[ix].temperature
+            ),
+            "pH": "pH = {:.4f} ± {:.4f}".format(
                 self.samples.loc[ix].pH, self.samples.loc[ix].pH_std
             ),
-        ]:
-            self.measurements_list.addWidget(QLabel(info))
+        }.items():
+            self.info_labels[info] = QLabel(label)
+            self.measurements_list.addWidget(self.info_labels[info])
         # Add individual measurements from sample
         L = self.data.sample_name == self.samples.index[self.m_which_sample]
         self.sample_pH_good = {}
@@ -260,10 +260,14 @@ class MainWindow(QMainWindow):
                     L & self.data.pH_good
                 ].pH.std()
                 self.plot_measurements()
-                # # Following lines cause errors --- uncheck a box then close program to see them
-                # self.update_sample_measurements()
-                # self.plot_samples()
-                # self.update_samples_table(ix, self.col_pH)
+                self.info_labels["pH"].setText(
+                    "pH = {:.4f} ± {:.4f}".format(
+                        self.samples.loc[ix].pH, self.samples.loc[ix].pH_std
+                    )
+                )
+                self.plot_samples()
+                # Following lines cause errors --- uncheck a box then close program to see them
+                # self.update_samples_table(self.m_which_sample, self.col_pH)
 
             self.sample_pH_good[jx].checkStateChanged.connect(pH_good_or_bad)
             ly.addStretch()
@@ -313,12 +317,20 @@ class MainWindow(QMainWindow):
             c="xkcd:dark purple",
         )
         ax.scatter(
-            self.data.number,
+            self.data.number[self.data.pH_good],
             self.data.pH[self.data.pH_good],
             s=10,
             c="xkcd:dark",
             alpha=0.8,
             edgecolor="none",
+        )
+        ax.scatter(
+            self.data.number[~self.data.pH_good],
+            self.data.pH[~self.data.pH_good],
+            s=10,
+            c="xkcd:dark",
+            alpha=0.8,
+            marker="x",
         )
         ax.set_ylabel("pH (total scale)")
         ax.set_xticks(self.samples.number)

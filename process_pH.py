@@ -112,6 +112,9 @@ class MainWindow(QMainWindow):
         # tabs.setMovable(True)
         tabs.addTab(w_samples, "Samples")
         tabs.addTab(w_measurements, "Measurements")
+        tabs.tabBarClicked.connect(
+            lambda x: print(x)
+        )  # use this to redraw each time tab switches
         self.setCentralWidget(tabs)
 
     def open_file(self):
@@ -257,7 +260,9 @@ class MainWindow(QMainWindow):
                     L & self.data.pH_good
                 ].pH.std()
                 self.plot_measurements()
-                # self.plot_samples()  # causes segmentation fault?!
+                # # Following lines cause errors --- uncheck a box then close program to see them
+                # self.update_sample_measurements()
+                # self.plot_samples()
                 # self.update_samples_table(ix, self.col_pH)
 
             self.sample_pH_good[jx].checkStateChanged.connect(pH_good_or_bad)

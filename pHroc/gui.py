@@ -60,8 +60,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Spectro pH processing")
         # === SAMPLES TAB ==============================================================
         # Button to import results file
-        s_button_initialise = QPushButton("Import results file")
+        s_button_initialise = QPushButton("Import results files from instrument")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
+        self.s_button_export_phroc = QPushButton("Export to .phroc")
+        self.s_button_export_excel = QPushButton("Export to .xlsx")
         # Text giving name of currently imported file
         self.s_current_file = QLabel("Current file: none")
         # Table with one-per-sample information
@@ -124,6 +126,12 @@ class MainWindow(QMainWindow):
         l_samples_table.addWidget(s_button_initialise)
         l_samples_table.addWidget(self.s_current_file)
         l_samples_table.addWidget(self.s_table_samples)
+        l_samples_export = QHBoxLayout()
+        l_samples_export.addWidget(self.s_button_export_phroc)
+        l_samples_export.addWidget(self.s_button_export_excel)
+        w_samples_export = QWidget()
+        w_samples_export.setLayout(l_samples_export)
+        l_samples_table.addWidget(w_samples_export)
         w_samples_table = QWidget()
         w_samples_table.setLayout(l_samples_table)
         # - Samples plot column
@@ -167,25 +175,30 @@ class MainWindow(QMainWindow):
         tabs.addTab(w_measurements, "Measurements")
         self.setCentralWidget(tabs)
 
+    def initialise(self):
+        # Set up samples tab
+        self.s_create_table_samples()
+        self.s_plot_samples()
+        self.s_button_export_phroc.released.connect(self.export_phroc)
+        self.s_button_export_excel.released.connect(self.export_excel)
+        # Set up measurements tab
+        self.m_which_sample = 1
+        self.m_create_table_measurements()
+        self.m_button_prev.released.connect(self.m_to_sample_prev)
+        self.m_button_next.released.connect(self.m_to_sample_next)
+        self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
+        self.m_button_last_to_next.released.connect(self.m_last_to_next)
+
     def import_dataset_and_initialise(self):
         # Open file dialog for user to choose the results file from the instrument
-        dialog_open = QFileDialog(self, filter="*.txt")
+        dialog_open = QFileDialog(self, filter="*.txt;;*.phroc")
         dialog_open.setFileMode(QFileDialog.FileMode.ExistingFile)
         if dialog_open.exec():
             self.filename = dialog_open.selectedFiles()[0]
             self.measurements, self.samples = funcs.read_measurements_create_samples(
                 self.filename
             )
-            # Set up samples tab
-            self.s_create_table_samples()
-            self.s_plot_samples()
-            # Set up measurements tab
-            self.m_which_sample = 1
-            self.m_create_table_measurements()
-            self.m_button_prev.released.connect(self.m_to_sample_prev)
-            self.m_button_next.released.connect(self.m_to_sample_next)
-            self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
-            self.m_button_last_to_next.released.connect(self.m_last_to_next)
+            self.initialise()
 
     def s_create_table_samples(self):
         self.s_current_file.setText("Current file: {}".format(self.filename))
@@ -516,3 +529,26 @@ class MainWindow(QMainWindow):
 
     def m_last_to_next(self):
         self.m_move_measurement(1)
+
+    def export_prep(self, extension):
+        dialog_save = QFileDialog(self, filter="*.{}".format(extension))
+        dialog_save.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog_save.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        export_dir = self.filename
+        if export_dir.upper().endswith(".TXT"):
+            export_dir = "{}.{}".format(export_dir[:-4], extension)
+        dialog_save.setDirectory(export_dir)
+        return dialog_save
+
+    def export_phroc(self):
+        dialog_save = self.export_prep("phroc")
+        if dialog_save.exec():
+            filename = dialog_save.selectedFiles()[0]
+            funcs.write_phroc(filename, self.measurements, self.samples)
+
+    def export_excel(self):
+        dialog_save = self.export_prep("xlsx")
+        if dialog_save.exec():
+            filename = dialog_save.selectedFiles()[0]
+            print(filename)
+            funcs.write_excel(filename, self.measurements, self.samples)

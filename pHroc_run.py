@@ -1,6 +1,6 @@
-import pHroc
+import phroc
 
-app = pHroc.gui.QApplication([])
-window = pHroc.gui.MainWindow()
+app = phroc.gui.QApplication([])
+window = phroc.gui.MainWindow()
 window.show()
 app.exec()

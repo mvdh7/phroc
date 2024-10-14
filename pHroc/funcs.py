@@ -1,3 +1,6 @@
+import os
+import tempfile
+import zipfile
 import koolstof as ks
 import pandas as pd
 import numpy as np
@@ -52,4 +55,35 @@ def read_measurements_create_samples(filename):
         temperature=samples.temperature[T],
         salinity=samples.salinity[T],
     )
+    return measurements, samples
+
+
+def write_phroc(filename, measurements, samples):
+    # filename needs to include the **absolute** path to the .phroc file to be saved!
+    # Using a relative path will mean it gets saved in the TemporaryDirectory instead
+    cwd = os.getcwd()
+    with tempfile.TemporaryDirectory() as tdir:
+        os.chdir(tdir)
+        measurements.to_parquet("measurements.parquet")
+        samples.to_parquet("samples.parquet")
+        if not filename.endswith(".phroc"):
+            filename += ".phroc"
+        with zipfile.ZipFile(filename, compression=zipfile.ZIP_LZMA, mode="w") as z:
+            z.write("measurements.parquet")
+            z.write("samples.parquet")
+    os.chdir(cwd)
+
+
+def write_excel(filename, measurements, samples):
+    with pd.ExcelWriter(filename, engine="openpyxl") as w:
+        samples.to_excel(w, sheet_name="Samples")
+        measurements.to_excel(w, sheet_name="Measurements")
+
+
+def read_phroc(filename):
+    with tempfile.TemporaryDirectory() as tdir:
+        with zipfile.ZipFile("test_exports/2024-04-27-CTD1.phroc", "r") as z:
+            z.extractall(tdir)
+        measurements = pd.read_parquet(os.path.join(tdir, "measurements.parquet"))
+        samples = pd.read_parquet(os.path.join(tdir, "samples.parquet"))
     return measurements, samples

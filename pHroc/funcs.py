@@ -87,3 +87,9 @@ def read_phroc(filename):
         measurements = pd.read_parquet(os.path.join(tdir, "measurements.parquet"))
         samples = pd.read_parquet(os.path.join(tdir, "samples.parquet"))
     return measurements, samples
+
+
+def read_excel(filename):
+    measurements = pd.read_excel(filename, sheet_name="Measurements").set_index("order")
+    samples = pd.read_excel(filename, sheet_name="Samples").set_index("order_analysis")
+    return measurements, samples

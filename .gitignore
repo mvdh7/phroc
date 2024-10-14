@@ -1,5 +1,6 @@
 .DS_Store
 ~$*
+test_exports
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

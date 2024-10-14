@@ -191,13 +191,21 @@ class MainWindow(QMainWindow):
 
     def import_dataset_and_initialise(self):
         # Open file dialog for user to choose the results file from the instrument
-        dialog_open = QFileDialog(self, filter="*.txt;;*.phroc")
+        dialog_open = QFileDialog(
+            self, filter="Potentially compatible files (*.txt *.phroc *.xlsx)"
+        )
         dialog_open.setFileMode(QFileDialog.FileMode.ExistingFile)
         if dialog_open.exec():
             self.filename = dialog_open.selectedFiles()[0]
-            self.measurements, self.samples = funcs.read_measurements_create_samples(
-                self.filename
-            )
+            print(self.filename)
+            if self.filename.lower().endswith(".txt"):
+                self.measurements, self.samples = (
+                    funcs.read_measurements_create_samples(self.filename)
+                )
+            elif self.filename.lower().endswith(".phroc"):
+                self.measurements, self.samples = funcs.read_phroc(self.filename)
+            elif self.filename.lower().endswith(".xlsx"):
+                self.measurements, self.samples = funcs.read_excel(self.filename)
             self.initialise()
 
     def s_create_table_samples(self):

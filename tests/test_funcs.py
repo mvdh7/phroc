@@ -60,3 +60,9 @@ with tempfile.TemporaryDirectory() as tdir:
 
 
 # %%
+measurements = pd.read_excel(
+    "test_exports/2024-04-27-CTD1.xlsx", sheet_name="Measurements"
+).set_index("order")
+samples = pd.read_excel(
+    "test_exports/2024-04-27-CTD1.xlsx", sheet_name="Samples"
+).set_index("order_analysis")

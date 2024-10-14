@@ -18,6 +18,15 @@ def _get_samples(sample):
     )
 
 
+def get_xpos(measurements, samples):
+    measurements["xpos"] = measurements.order_analysis.astype(float)
+    for s, sample in samples.iterrows():
+        M = measurements.sample_name == sample.sample_name
+        measurements.loc[M, "xpos"] += (
+            0.5 + np.arange(sample.pH_count) - sample.pH_count / 2
+        ) * 0.05
+
+
 def read_measurements_create_samples(filename):
     # Import pH measurements file from instrument and recalculate pH
     measurements = ks.spectro.read_agilent_pH(filename)
@@ -36,12 +45,7 @@ def read_measurements_create_samples(filename):
     samples = measurements.groupby("order_analysis").apply(
         _get_samples, include_groups=False
     )
-    measurements["xpos"] = measurements.order_analysis.astype(float)
-    for s, sample in samples.iterrows():
-        L = measurements.sample_name == sample.sample_name
-        measurements.loc[L, "xpos"] += (
-            0.5 + np.arange(sample.pH_count) - sample.pH_count / 2
-        ) * 0.05
+    get_xpos(measurements, samples)
     samples["is_tris"] = samples.sample_name.str.upper().str.startswith("TRIS")
     T = samples.is_tris
     samples["pH_tris_expected"] = ks.pH_tris_DD98(
@@ -49,7 +53,3 @@ def read_measurements_create_samples(filename):
         salinity=samples.salinity[T],
     )
     return measurements, samples
-
-
-# filename = "2024-04-27-CTD1.TXT"
-# measurements, samples = read_measurements_create_samples(filename)

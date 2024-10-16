@@ -75,6 +75,8 @@ def write_phroc(filename, measurements, samples):
 
 
 def write_excel(filename, measurements, samples):
+    if not filename.endswith(".xlsx"):
+        filename += ".xlsx"
     with pd.ExcelWriter(filename, engine="openpyxl") as w:
         samples.to_excel(w, sheet_name="Samples")
         measurements.to_excel(w, sheet_name="Measurements")
@@ -82,7 +84,7 @@ def write_excel(filename, measurements, samples):
 
 def read_phroc(filename):
     with tempfile.TemporaryDirectory() as tdir:
-        with zipfile.ZipFile("test_exports/2024-04-27-CTD1.phroc", "r") as z:
+        with zipfile.ZipFile(filename, "r") as z:
             z.extractall(tdir)
         measurements = pd.read_parquet(os.path.join(tdir, "measurements.parquet"))
         samples = pd.read_parquet(os.path.join(tdir, "samples.parquet"))

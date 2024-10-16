@@ -329,9 +329,7 @@ class MainWindow(QMainWindow):
         # === UPDATE SELF.SAMPLES AND SELF.MEASUREMENTS ================================
         v = self.s_table_samples.item(r, c).data(0)  # the updated value
         s = r + 1  # the index for the corresponding row of self.samples
-        M = (
-            self.measurements.sample_name == self.samples.loc[s].sample_name
-        )  # the corresponding measurements
+        M = self.measurements.order_analysis == s  # the corresponding measurements
         Mg = M & self.measurements.pH_good  # the corresponding good measurements
         # User has edited sample_type
         if c == self.s_col_sample_type:
@@ -398,7 +396,7 @@ class MainWindow(QMainWindow):
     def m_create_table_measurements(self):
         s = self.m_which_sample
         sample = self.samples.loc[s]
-        M = self.measurements.sample_name == sample.sample_name
+        M = self.measurements.order_analysis == s
         self.m_sample_name.setText(
             "Sample: {} ({} of {})".format(sample.sample_name, s, self.samples.shape[0])
         )
@@ -433,7 +431,7 @@ class MainWindow(QMainWindow):
     def m_update_table_measurements(self, r, c):
         s = self.m_which_sample
         sample = self.samples.loc[s]
-        M = self.measurements.sample_name == sample.sample_name
+        M = self.measurements.order_analysis == s
         m = self.measurements[M].index[r]
         self.measurements.loc[m, "pH_good"] = (
             self.m_table_measurements.item(r, c).checkState() == Qt.Checked
@@ -454,7 +452,7 @@ class MainWindow(QMainWindow):
         sample = self.samples.loc[self.m_which_sample]
         ax = self.m_fig_measurements.ax
         ax.cla()
-        M = self.measurements.sample_name == sample.sample_name
+        M = self.measurements.order_analysis == self.m_which_sample
         Mg = M & self.measurements.pH_good
         Mb = M & ~self.measurements.pH_good
         fx = 1 + np.arange(M.sum())
@@ -512,7 +510,7 @@ class MainWindow(QMainWindow):
             condition = s_new < self.samples.shape[0]
         if condition:
             sample = self.samples.loc[s]
-            M = self.measurements.sample_name == sample.sample_name
+            M = self.measurements.order_analysis == s
             m = self.measurements[M].index[0]
             # Move the sample
             self.measurements.loc[m, "sample_name"] = self.samples.loc[

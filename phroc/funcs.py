@@ -17,6 +17,7 @@ def _get_samples(sample):
             "pH_std": sample.pH[sample.pH_good].std(),
             "pH_count": sample.pH.size,
             "pH_good": sample.pH_good.sum(),
+            "is_tris": sample.is_tris.all(),
         }
     )
 
@@ -30,12 +31,42 @@ def get_xpos(measurements, samples):
         ) * 0.05
 
 
-def read_measurements_create_samples(filename):
-    # Import pH measurements file from instrument and recalculate pH
+def get_samples_from_measurements(measurements):
+    # Get one-per-sample table and repopulate xpos column in measurements
+    samples = measurements.groupby("order_analysis").apply(
+        _get_samples, include_groups=False
+    )
+    get_xpos(measurements, samples)
+    T = samples.is_tris
+    samples["pH_tris_expected"] = ks.pH_tris_DD98(
+        temperature=samples[T].temperature,
+        salinity=samples[T].salinity,
+    )
+    return samples
+
+
+def read_agilent(filename):
     measurements = ks.spectro.read_agilent_pH(filename)
     measurements["order_analysis"] = (
         measurements.sample_name.shift() != measurements.sample_name
     ).cumsum()
+    measurements["pH_good"] = True
+    measurements["is_tris"] = measurements.sample_name.str.upper().str.startswith(
+        "TRIS"
+    )
+    return measurements
+
+
+def read_measurements_create_samples(filename):
+    if filename.lower().endswith(".txt"):
+        measurements = read_agilent(filename)
+    elif filename.lower().endswith(".phroc"):
+        measurements = read_phroc(filename)
+    elif filename.lower().endswith(".xlsx"):
+        measurements = read_excel(filename)
+    else:
+        print("File type not recognised!")
+    # Import pH measurements file and recalculate pH
     measurements["pH"] = ks.spectro.pH_NIOZ(
         measurements.abs578,
         measurements.abs434,
@@ -43,18 +74,8 @@ def read_measurements_create_samples(filename):
         temperature=measurements.temperature,
         salinity=measurements.salinity,
     )
-    measurements["pH_good"] = True
-    # Get one-per-sample table
-    samples = measurements.groupby("order_analysis").apply(
-        _get_samples, include_groups=False
-    )
-    get_xpos(measurements, samples)
-    samples["is_tris"] = samples.sample_name.str.upper().str.startswith("TRIS")
-    T = samples.is_tris
-    samples["pH_tris_expected"] = ks.pH_tris_DD98(
-        temperature=samples.temperature[T],
-        salinity=samples.salinity[T],
-    )
+    # Create samples table - also repopulates xpos column in measurements
+    samples = get_samples_from_measurements(measurements)
     return measurements, samples
 
 

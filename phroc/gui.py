@@ -333,7 +333,9 @@ class MainWindow(QMainWindow):
         Mg = M & self.measurements.pH_good  # the corresponding good measurements
         # User has edited sample_type
         if c == self.s_col_sample_type:
-            self.samples.loc[s, "is_tris"] = v.upper() in ["TRIS", "T"]
+            is_tris = v.upper() in ["TRIS", "T"]
+            self.measurements.loc[M, "is_tris"] = is_tris
+            self.samples.loc[s, "is_tris"] = is_tris
         # User has edited sample_name
         elif c == self.s_col_sample_name:
             self.measurements.loc[M, "sample_name"] = v
@@ -506,29 +508,58 @@ class MainWindow(QMainWindow):
         # Only do anything if we're not already on the first (-1) or last (+1) sample
         if direction == -1:
             condition = s_new > 0
+            m_ix = 0
         elif direction == 1:
             condition = s_new < self.samples.shape[0]
+            m_ix = -1
         if condition:
             sample = self.samples.loc[s]
             M = self.measurements.order_analysis == s
-            m = self.measurements[M].index[0]
+            m = self.measurements[M].index[m_ix]
             # Move the sample
             self.measurements.loc[m, "sample_name"] = self.samples.loc[
                 s_new
             ].sample_name
+            original_order_analysis = self.measurements.loc[m, "order_analysis"]
             self.measurements.loc[m, "order_analysis"] += direction
-            # Update info in samples table
-            Mu = self.measurements.sample_name == sample.sample_name
-            Mp = self.measurements.sample_name == self.samples.loc[s_new].sample_name
-            for _s, _M in zip((s, s_new), (Mu, Mp)):
-                self.samples.loc[_s, "pH"] = self.measurements[_M].pH.mean()
-                self.samples.loc[_s, "pH_std"] = self.measurements[_M].pH.std()
-                self.samples.loc[_s, "pH_count"] = _M.sum()
-                self.samples.loc[_s, "pH_good"] = (_M & self.measurements.pH_good).sum()
-            funcs.get_xpos(self.measurements, self.samples)
+            self.measurements.loc[m, "is_tris"] = self.measurements.loc[
+                m + direction, "is_tris"
+            ]
+            # Update samples table etc. if this move does not completely remove a sample
+            if M.sum() > 1:
+                Mu = (  # the current sample (with now one fewer measurement)
+                    self.measurements.sample_name == sample.sample_name
+                )
+                Mp = (  # the other sample (with now one extra measurement)
+                    self.measurements.sample_name == self.samples.loc[s_new].sample_name
+                )
+                for _s, _M in zip((s, s_new), (Mu, Mp)):
+                    self.samples.loc[_s, "pH"] = self.measurements[_M].pH.mean()
+                    self.samples.loc[_s, "pH_std"] = self.measurements[_M].pH.std()
+                    self.samples.loc[_s, "pH_count"] = _M.sum()
+                    self.samples.loc[_s, "pH_good"] = (
+                        _M & self.measurements.pH_good
+                    ).sum()
+                funcs.get_xpos(self.measurements, self.samples)
+                self.s_update_table_samples(s - 1, self.s_col_pH)
+                self.s_update_table_samples(s_new - 1, self.s_col_pH)
+            else:  # if we have now completely removed this sample
+                # Update order_analysis
+                self.measurements.loc[
+                    self.measurements.order_analysis > original_order_analysis,
+                    "order_analysis",
+                ] -= 1
+                # Recompute samples table
+                self.samples = funcs.get_samples_from_measurements(self.measurements)
+                # Remove removed sample from GUI samples table and update adjusted row
+                r = s - 1
+                self.s_table_samples.removeRow(r)
+                if direction == -1:
+                    self.m_which_sample -= 1
+                    self.s_update_table_samples(r - 1, self.s_col_pH)
+                else:
+                    self.s_update_table_samples(r, self.s_col_pH)
             self.m_refresh_table_measurements()
-            self.s_update_table_samples(s - 1, self.s_col_pH)
-            self.s_update_table_samples(s_new - 1, self.s_col_pH)
 
     def m_first_to_prev(self):
         self.m_move_measurement(-1)

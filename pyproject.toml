@@ -1,0 +1,41 @@
+[build-system]
+requires = [
+    "setuptools",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phroc"
+description = "GUI for processing spectrophotometric pH data"
+readme = "README.md"
+classifiers =[
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Natural Language :: English",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Oceanography",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "koolstof",
+    "numpy",
+    "pandas",
+    "pyside6",
+    "matplotlib",
+]
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+include = ["phroc*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "phroc.meta.__version__"}

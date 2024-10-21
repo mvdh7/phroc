@@ -29,6 +29,8 @@ dependencies = [
     "pandas",
     "pyside6",
     "matplotlib",
+    "pyarrow",
+    "openpyxl",
 ]
 dynamic = ["version"]
 

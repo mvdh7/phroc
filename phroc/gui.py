@@ -480,6 +480,8 @@ class MainWindow(QMainWindow):
         ax.scatter(fx[L], self.measurements[Mg].pH)
         ax.scatter(fx[~L], self.measurements[Mb].pH, marker="x")
         ax.axhline(sample.pH)
+        if sample.is_tris:
+            ax.axhline(sample.pH_tris_expected, ls=":")
         ax.set_xticks(fx)
         # Make sure y-axis range is always at least 0.002
         ylim = ax.get_ylim()

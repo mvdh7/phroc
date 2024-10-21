@@ -26,9 +26,6 @@ def get_xpos(measurements, samples):
     measurements["xpos"] = measurements.order_analysis.astype(float)
     for s, sample in samples.iterrows():
         M = measurements.order_analysis == s
-        print(s)
-        print(sample)
-        print(M.sum())
         measurements.loc[M, "xpos"] += (
             0.5 + np.arange(sample.pH_count) - sample.pH_count / 2
         ) * 0.05

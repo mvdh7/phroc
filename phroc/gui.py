@@ -23,8 +23,6 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
 from . import funcs
 
-mpl.use("Qt5Agg")
-
 # TODO
 # - allow identification of +20 samples (and other types?)
 

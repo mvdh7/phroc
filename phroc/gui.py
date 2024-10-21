@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QMainWindow,
     QFileDialog,
     QPushButton,
@@ -26,8 +27,6 @@ mpl.use("Qt5Agg")
 
 # TODO
 # - allow identification of +20 samples (and other types?)
-# - results export
-# - code generation / save state
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -60,7 +59,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Spectro pH processing")
         # === SAMPLES TAB ==============================================================
         # Button to import results file
-        s_button_initialise = QPushButton("Import results files from instrument")
+        s_button_initialise = QPushButton("Import results files")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
         self.s_button_export_phroc = QPushButton("Export to .phroc")
         self.s_button_export_excel = QPushButton("Export to .xlsx")
@@ -120,6 +119,10 @@ class MainWindow(QMainWindow):
             "Move first measurement to previous sample"
         )
         self.m_button_last_to_next = QPushButton("Move last measurement to next sample")
+        # Split measurements
+        self.m_button_split = QPushButton("Split sample at measurement number ")
+        self.m_combo_split = QComboBox()
+        self.m_combo_split.addItem("-")
         # === ASSEMBLE LAYOUT ==========================================================
         # - Samples table column
         l_samples_table = QVBoxLayout()
@@ -157,6 +160,12 @@ class MainWindow(QMainWindow):
         l_measurements_central.addWidget(self.m_button_first_to_prev)
         l_measurements_central.addWidget(self.m_table_measurements)
         l_measurements_central.addWidget(self.m_button_last_to_next)
+        l_measurements_split = QHBoxLayout()
+        l_measurements_split.addWidget(self.m_button_split)
+        l_measurements_split.addWidget(self.m_combo_split)
+        w_measurements_split = QWidget()
+        w_measurements_split.setLayout(l_measurements_split)
+        l_measurements_central.addWidget(w_measurements_split)
         w_measurements_central = QWidget()
         w_measurements_central.setLayout(l_measurements_central)
         # - Measurements tab
@@ -184,6 +193,7 @@ class MainWindow(QMainWindow):
         # Set up measurements tab
         self.m_which_sample = 1
         self.m_create_table_measurements()
+        self.m_button_split.released.connect(self.m_split)
         self.m_button_prev.released.connect(self.m_to_sample_prev)
         self.m_button_next.released.connect(self.m_to_sample_next)
         self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
@@ -214,17 +224,20 @@ class MainWindow(QMainWindow):
         # Loop through samples and set values in GUI table
         for s, sample in self.samples.iterrows():
             r = s - 1
-            self.s_set_cell_sample_type(r, sample)
-            self.s_set_cell_sample_name(r, sample)
-            self.s_set_cell_salinity(r, sample)
-            self.s_set_cell_temperature(r, sample)
-            self.s_set_cell_pH(r, sample)
-            self.s_set_cell_pH_std(r, sample)
-            self.s_set_cell_pH_expected(r, sample)
-            self.s_set_cell_measurements(r, sample)
+            self.s_set_all_cells(r, sample)
         self.s_table_samples_U = self.s_table_samples.cellChanged.connect(
             self.s_update_table_samples
         )
+
+    def s_set_all_cells(self, r, sample):
+        self.s_set_cell_sample_type(r, sample)
+        self.s_set_cell_sample_name(r, sample)
+        self.s_set_cell_salinity(r, sample)
+        self.s_set_cell_temperature(r, sample)
+        self.s_set_cell_pH(r, sample)
+        self.s_set_cell_pH_std(r, sample)
+        self.s_set_cell_pH_expected(r, sample)
+        self.s_set_cell_measurements(r, sample)
 
     def s_set_cell_sample_type(self, r, sample):
         if sample.is_tris:
@@ -420,6 +433,11 @@ class MainWindow(QMainWindow):
             self.m_update_table_measurements
         )
         self.m_plot_measurements()
+        # Update splitting box contents
+        self.m_combo_split.clear()
+        self.m_combo_split.addItem("-")
+        combo_list = [str(_m) for _m in range(2, M.sum() + 1)]
+        self.m_combo_split.addItems(combo_list)
 
     def m_set_cell_pH(self, r, measurement):
         cell_pH = QTableWidgetItem("{:.4f}".format(measurement.pH))
@@ -527,11 +545,11 @@ class MainWindow(QMainWindow):
             ]
             # Update samples table etc. if this move does not completely remove a sample
             if M.sum() > 1:
-                Mu = (  # the current sample (with now one fewer measurement)
-                    self.measurements.sample_name == sample.sample_name
+                Mu = (  # the current sample (now with one fewer measurement)
+                    self.measurements.order_analysis == s
                 )
-                Mp = (  # the other sample (with now one extra measurement)
-                    self.measurements.sample_name == self.samples.loc[s_new].sample_name
+                Mp = (  # the other sample (now with one extra measurement)
+                    self.measurements.order_analysis == s_new
                 )
                 for _s, _M in zip((s, s_new), (Mu, Mp)):
                     self.samples.loc[_s, "pH"] = self.measurements[_M].pH.mean()
@@ -551,7 +569,7 @@ class MainWindow(QMainWindow):
                 ] -= 1
                 # Recompute samples table
                 self.samples = funcs.get_samples_from_measurements(self.measurements)
-                # Remove removed sample from GUI samples table and update adjusted row
+                # Remove removed sample from GUI samples table and refresh adjusted row
                 r = s - 1
                 self.s_table_samples.removeRow(r)
                 if direction == -1:
@@ -566,6 +584,27 @@ class MainWindow(QMainWindow):
 
     def m_last_to_next(self):
         self.m_move_measurement(1)
+
+    def m_split(self):
+        split_at = self.m_combo_split.currentText()
+        if split_at != "-":
+            split_at = int(split_at)
+            print("Let's move measurement {} onwards to a new sample!".format(split_at))
+            s = self.m_which_sample
+            M = self.measurements.order_analysis == s
+            Mn = self.measurements[M].index[(split_at - 1) :]  # the new sample
+            # Update order_analysis
+            self.measurements.loc[
+                self.measurements.order_analysis > s, "order_analysis"
+            ] += 1
+            self.measurements.loc[Mn, "order_analysis"] = s + 1
+            # Recompute samples table
+            self.samples = funcs.get_samples_from_measurements(self.measurements)
+            self.s_table_samples.insertRow(s)
+            self.s_update_table_samples(s - 1, self.s_col_pH)
+            self.m_which_sample += 1
+            self.m_refresh_table_measurements()
+            self.s_set_all_cells(s, self.samples.loc[self.m_which_sample])
 
     def export_prep(self, extension):
         dialog_save = QFileDialog(self, filter="*.{}".format(extension))
@@ -587,5 +626,4 @@ class MainWindow(QMainWindow):
         dialog_save = self.export_prep("xlsx")
         if dialog_save.exec():
             filename = dialog_save.selectedFiles()[0]
-            print(filename)
             funcs.write_excel(filename, self.measurements, self.samples)

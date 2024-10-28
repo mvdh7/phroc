@@ -7,7 +7,7 @@ import numpy as np
 
 
 def _get_samples(sample):
-    # Used in read_measurements_create_samples()
+    # Used in get_samples_from_measurements()
     return pd.Series(
         {
             "sample_name": sample.sample_name.iloc[0],

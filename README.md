@@ -11,15 +11,19 @@
 
 ## Installation
 
-    > conda install conda-forge::phroc
-    > pip install phroc
+    conda install conda-forge::phroc
+    pip install phroc
 
 ## Usage
 
-    > phroc
+    phroc
 
-## Specific version DOIs
+## Citation
 
-The DOI on the badge above is for all versions of pHroc, automatically resolving to the recent version of pHroc.  Please cite the specific version that you use:
+The full citation for the most recent version is:
+
+> Humphreys, M. P. (2024). pHroc: GUI for processing spectrophotometric pH data (v0.1).  *Zenodo*.  [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238).
+
+Please adjust the version number and DOI to match what you used:
 
   * v0.1: [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238)

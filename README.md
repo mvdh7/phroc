@@ -22,8 +22,9 @@
 
 To cite the most recent version:
 
-> Humphreys, M. P. (2024). pHroc: GUI for processing spectrophotometric pH data (v0.1).  *Zenodo*.  [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238).
+> Humphreys, M. P. (2024). pHroc: GUI for processing spectrophotometric pH data (v0.2).  *Zenodo*.  [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573).
 
 Please adjust the version number and DOI to match what you used:
 
-  * v0.1: [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238)
+  * v0.2 (28 October 2024): [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573)
+  * v0.1 (21 October 2024): [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238)

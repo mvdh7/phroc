@@ -18,6 +18,7 @@ def _get_samples(sample):
             "pH_count": sample.pH.size,
             "pH_good": sample.pH_good.sum(),
             "is_tris": sample.is_tris.all(),
+            "extra_mcp": sample.extra_mcp.all(),
         }
     )
 
@@ -51,9 +52,9 @@ def read_agilent(filename):
         measurements.sample_name.shift() != measurements.sample_name
     ).cumsum()
     measurements["pH_good"] = True
-    measurements["is_tris"] = measurements.sample_name.str.upper().str.startswith(
-        "TRIS"
-    )
+    sns = measurements.sample_name.str.upper().str
+    measurements["is_tris"] = sns.startswith("TRIS") | sns.startswith("NT")
+    measurements["extra_mcp"] = sns.endswith("-+20")
     return measurements
 
 

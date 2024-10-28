@@ -65,12 +65,13 @@ class MainWindow(QMainWindow):
         self.s_current_file = QLabel("Current file: none")
         # Table with one-per-sample information
         self.s_table_samples = QTableWidget()
-        s_table_samples_ncols = 8
+        s_table_samples_ncols = 9
         self.s_table_samples.setColumnCount(s_table_samples_ncols)
         self.s_table_samples.setHorizontalHeaderLabels(
             [
                 "Type",
                 "Sample name",
+                "Extra\nmCP?",
                 "Salinity",
                 "Temperature\n/ °C",
                 "pH",
@@ -81,12 +82,13 @@ class MainWindow(QMainWindow):
         )
         self.s_col_sample_type = 0
         self.s_col_sample_name = 1
-        self.s_col_salinity = 2
-        self.s_col_temperature = 3
-        self.s_col_pH = 4
-        self.s_col_pH_std = 5
-        self.s_col_pH_expected = 6
-        self.s_col_measurements = 7
+        self.s_col_extra_mcp = 2
+        self.s_col_salinity = 3
+        self.s_col_temperature = 4
+        self.s_col_pH = 5
+        self.s_col_pH_std = 6
+        self.s_col_pH_expected = 7
+        self.s_col_measurements = 8
         header = self.s_table_samples.horizontalHeader()
         for c in range(s_table_samples_ncols):
             header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
@@ -229,6 +231,7 @@ class MainWindow(QMainWindow):
 
     def s_set_all_cells(self, r, sample):
         self.s_set_cell_sample_type(r, sample)
+        self.s_set_cell_extra_mcp(r, sample)
         self.s_set_cell_sample_name(r, sample)
         self.s_set_cell_salinity(r, sample)
         self.s_set_cell_temperature(r, sample)
@@ -244,6 +247,14 @@ class MainWindow(QMainWindow):
             sample_type = "Sample"
         cell_sample_type = QTableWidgetItem(sample_type)
         self.s_table_samples.setItem(r, self.s_col_sample_type, cell_sample_type)
+
+    def s_set_cell_extra_mcp(self, r, sample):
+        cell_extra_mcp = QTableWidgetItem()
+        if sample.extra_mcp:
+            cell_extra_mcp.setCheckState(Qt.Checked)
+        else:
+            cell_extra_mcp.setCheckState(Qt.Unchecked)
+        self.s_table_samples.setItem(r, self.s_col_extra_mcp, cell_extra_mcp)
 
     def s_set_cell_sample_name(self, r, sample):
         cell_sample_name = QTableWidgetItem(sample.sample_name)
@@ -351,7 +362,11 @@ class MainWindow(QMainWindow):
         elif c == self.s_col_sample_name:
             self.measurements.loc[M, "sample_name"] = v
             self.samples.loc[s, "sample_name"] = v
-            # self.update_sample_measurements()
+        # User has edited extra_mcp checkbox
+        elif c == self.s_col_extra_mcp:
+            extra_mcp = self.s_table_samples.item(r, c).checkState() == Qt.Checked
+            self.measurements.loc[M, "extra_mcp"] = extra_mcp
+            self.samples.loc[s, "extra_mcp"] = extra_mcp
         # User has edited salinity
         elif c == self.s_col_salinity:
             self.measurements.loc[M, "salinity"] = float(v)

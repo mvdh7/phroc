@@ -1,3 +1,4 @@
+from sys import argv
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -55,6 +56,7 @@ class MainWindow(QMainWindow):
         # Button to import results file
         s_button_initialise = QPushButton("Import results files")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
+        self.file_loaded = False
         self.s_button_export_phroc = QPushButton("Export to .phroc")
         self.s_button_export_excel = QPushButton("Export to .xlsx")
         # Text giving name of currently imported file
@@ -88,6 +90,7 @@ class MainWindow(QMainWindow):
         header = self.s_table_samples.horizontalHeader()
         for c in range(s_table_samples_ncols):
             header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        self.s_table_samples_U = None
         # Plot of one-per-sample information
         self.s_fig_samples = MplCanvas(
             self, width=6, height=9, dpi=100, nrows=3, sharex=True
@@ -179,6 +182,10 @@ class MainWindow(QMainWindow):
         tabs.addTab(w_samples, "Samples")
         tabs.addTab(w_measurements, "Measurements")
         self.setCentralWidget(tabs)
+        # If provided, import file
+        if len(argv) > 1:
+            self.filename = argv[1]
+            self._import_dataset_and_initialise()
 
     def initialise(self):
         # Set up samples tab
@@ -188,12 +195,27 @@ class MainWindow(QMainWindow):
         self.s_button_export_excel.released.connect(self.export_excel)
         # Set up measurements tab
         self.m_which_sample = 1
-        self.m_create_table_measurements()
-        self.m_button_split.released.connect(self.m_split)
-        self.m_button_prev.released.connect(self.m_to_sample_prev)
-        self.m_button_next.released.connect(self.m_to_sample_next)
-        self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
-        self.m_button_last_to_next.released.connect(self.m_last_to_next)
+        if not self.file_loaded:
+            self.m_create_table_measurements()
+            self.m_button_split.released.connect(self.m_split)
+            self.m_button_prev.released.connect(self.m_to_sample_prev)
+            self.m_button_next.released.connect(self.m_to_sample_next)
+            self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
+            self.m_button_last_to_next.released.connect(self.m_last_to_next)
+        else:
+            self.m_refresh_table_measurements()
+
+    def _import_dataset_and_initialise(self):
+        if self.filename.lower().endswith(".txt"):
+            self.measurements, self.samples = funcs.read_measurements_create_samples(
+                self.filename
+            )
+        elif self.filename.lower().endswith(".phroc"):
+            self.measurements, self.samples = funcs.read_phroc(self.filename)
+        elif self.filename.lower().endswith(".xlsx"):
+            self.measurements, self.samples = funcs.read_excel(self.filename)
+        self.initialise()
+        self.file_loaded = True
 
     def import_dataset_and_initialise(self):
         # Open file dialog for user to choose the results file from the instrument
@@ -203,19 +225,13 @@ class MainWindow(QMainWindow):
         dialog_open.setFileMode(QFileDialog.FileMode.ExistingFile)
         if dialog_open.exec():
             self.filename = dialog_open.selectedFiles()[0]
-            print(self.filename)
-            if self.filename.lower().endswith(".txt"):
-                self.measurements, self.samples = (
-                    funcs.read_measurements_create_samples(self.filename)
-                )
-            elif self.filename.lower().endswith(".phroc"):
-                self.measurements, self.samples = funcs.read_phroc(self.filename)
-            elif self.filename.lower().endswith(".xlsx"):
-                self.measurements, self.samples = funcs.read_excel(self.filename)
-            self.initialise()
+            self._import_dataset_and_initialise()
 
     def s_create_table_samples(self):
         self.s_current_file.setText("Current file: {}".format(self.filename))
+        if self.s_table_samples_U is not None:
+            self.s_table_samples.cellChanged.disconnect(self.s_table_samples_U)
+        self.s_table_samples.clearContents()
         self.s_table_samples.setRowCount(self.samples.shape[0])
         # Loop through samples and set values in GUI table
         for s, sample in self.samples.iterrows():

@@ -1,7 +1,7 @@
 {
     "description": "phroc: GUI for processing spectrophotometric pH data", 
     "license": "GPL-3.0-only", 
-    "title": "phroc: GUI for processing spectrophotometric pH data", 
+    "title": "pHroc: GUI for processing spectrophotometric pH data", 
     "creators": [
         {
             "affiliation": "NIOZ Royal Netherlands Institute for Sea Research, Texel, the Netherlands", 

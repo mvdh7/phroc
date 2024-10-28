@@ -20,7 +20,7 @@
 
 ## Citation
 
-The full citation for the most recent version is:
+To cite the most recent version:
 
 > Humphreys, M. P. (2024). pHroc: GUI for processing spectrophotometric pH data (v0.1).  *Zenodo*.  [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238).
 

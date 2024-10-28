@@ -1,8 +1,9 @@
-import phroc
 import matplotlib as mpl
+from PySide6.QtWidgets import QApplication
+import phroc
 
 mpl.use("Qt5Agg")
-app = phroc.gui.QApplication([])
+app = QApplication([])
 window = phroc.gui.MainWindow()
 window.show()
 app.exec()

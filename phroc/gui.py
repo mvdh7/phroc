@@ -21,10 +21,7 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
-from . import funcs
-
-# TODO
-# - allow identification of +20 samples (and other types?)
+from . import funcs, meta
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -54,7 +51,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         # Initialise
         super().__init__()
-        self.setWindowTitle("Spectro pH processing")
+        self.setWindowTitle("pHroc v{}".format(meta.__version__))
         # === SAMPLES TAB ==============================================================
         # Button to import results file
         s_button_initialise = QPushButton("Import results files")

@@ -616,6 +616,7 @@ class MainWindow(QMainWindow):
             self.s_update_table_samples(s - 1, self.s_col_pH)
             self.m_which_sample += 1
             self.m_refresh_table_measurements()
+            # s_set_all_cells below is the slow step for this entire function
             self.s_set_all_cells(s, self.samples.loc[self.m_which_sample])
 
     def export_prep(self, extension):

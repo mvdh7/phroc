@@ -1,58 +1,65 @@
-import tempfile
 import os
-import phroc
-import pandas as pd
+import tempfile
+
 import numpy as np
+import pandas as pd
+
+import phroc
 
 
 filename = "tests/data/2024-04-27-CTD1"
-measurements, samples = phroc.funcs.read_measurements_create_samples(
-    "{}.TXT".format(filename)
+data = phroc.UpdatingSummaryDataset(
+    "{}.TXT".format(filename), dye_intercept=0.5, dye_slope=0.5
 )
 
 
 def test_read():
-    assert isinstance(measurements, pd.DataFrame)
-    assert isinstance(samples, pd.DataFrame)
+    assert isinstance(data.measurements, pd.DataFrame)
+    assert isinstance(data.samples, pd.DataFrame)
 
 
 def test_write_read_phroc():
     fname = "test_funcs"
     with tempfile.TemporaryDirectory() as tdir:
-        phroc.funcs.write_phroc(os.path.join(tdir, fname), measurements, samples)
+        data.to_phroc(os.path.join(tdir, fname))
         assert "{}.phroc".format(fname) in os.listdir(tdir)
-        measurements_p, samples_p = phroc.funcs.read_phroc(
-            os.path.join(tdir, "{}.phroc".format(fname))
-        )
-    assert (measurements_p == measurements).all().all()
+        data_p = phroc.read_phroc(os.path.join(tdir, "{}.phroc".format(fname)))
+    assert (data_p.measurements == data.measurements).all().all()
     assert (
-        ((samples_p == samples) | (samples_p.isnull() & samples.isnull())).all().all()
+        (
+            (data_p.samples == data.samples)
+            | (data_p.samples.isnull() & data.samples.isnull())
+        )
+        .all()
+        .all()
     )
+    assert data.dye_intercept == data_p.dye_intercept
+    assert data.dye_slope == data_p.dye_slope
 
 
 def test_write_read_excel():
     fname = "test_funcs"
     with tempfile.TemporaryDirectory() as tdir:
-        phroc.funcs.write_excel(os.path.join(tdir, fname), measurements, samples)
+        data.to_excel(os.path.join(tdir, fname))
         assert "{}.xlsx".format(fname) in os.listdir(tdir)
-        measurements_p, samples_p = phroc.funcs.read_excel(
-            os.path.join(tdir, "{}.xlsx".format(fname))
-        )
-    for c in measurements_p.columns:
-        if measurements[c].dtype == float:
-            assert np.all(np.isclose(measurements_p[c], measurements[c]))
+        data_p = phroc.read_excel(os.path.join(tdir, "{}.xlsx".format(fname)))
+    for c in data_p.measurements.columns:
+        if data.measurements[c].dtype == float:
+            assert np.all(np.isclose(data_p.measurements[c], data.measurements[c]))
         else:
-            assert (measurements_p[c] == measurements[c]).all()
-    for c in samples_p.columns:
-        if samples[c].dtype == float:
+            assert (data_p.measurements[c] == data.measurements[c]).all()
+    for c in data_p.samples.columns:
+        if data.samples[c].dtype == float:
             assert np.all(
-                np.isclose(samples_p[c], samples[c])
-                | (samples_p[c].isnull() & samples[c].isnull())
+                np.isclose(data_p.samples[c], data.samples[c])
+                | (data_p.samples[c].isnull() & data.samples[c].isnull())
             )
         else:
-            assert (samples_p[c] == samples[c]).all()
+            assert (data_p.samples[c] == data.samples[c]).all()
+    assert data.dye_intercept == data_p.dye_intercept
+    assert data.dye_slope == data_p.dye_slope
 
 
-# test_read()
-# test_write_read_phroc()
-# test_write_read_excel()
+test_read()
+test_write_read_phroc()
+test_write_read_excel()

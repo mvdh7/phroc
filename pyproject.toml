@@ -42,3 +42,9 @@ include = ["phroc*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "phroc.meta.__version__"}
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+lines-after-imports = 2
+no-sections = false

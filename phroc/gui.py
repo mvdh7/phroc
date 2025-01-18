@@ -1,26 +1,26 @@
 from sys import argv
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QMainWindow,
-    QFileDialog,
-    QPushButton,
-    QHBoxLayout,
-    QVBoxLayout,
-    QWidget,
-    QLabel,
-    QTabWidget,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-)
+
 import koolstof as ks
-import pandas as pd
-import numpy as np
 import matplotlib as mpl
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
 from . import funcs, meta
 
 

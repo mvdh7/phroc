@@ -60,6 +60,6 @@ def test_write_read_excel():
     assert data.dye_slope == data_p.dye_slope
 
 
-test_read()
-test_write_read_phroc()
-test_write_read_excel()
+# test_read()
+# test_write_read_phroc()
+# test_write_read_excel()

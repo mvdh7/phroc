@@ -20,6 +20,7 @@ def read_phroc(filename: str) -> UpdatingSummaryDataset:
 
 def read_excel(filename: str) -> UpdatingSummaryDataset:
     measurements = pd.read_excel(filename, sheet_name="Measurements").set_index("order")
+    measurements["comments"] = measurements.comments.fillna("")
     settings = pd.read_excel(filename, sheet_name="Settings")
     return UpdatingSummaryDataset(
         measurements, **{s: settings[s].iloc[0] for s in settings.columns}

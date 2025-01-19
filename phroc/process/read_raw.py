@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from .parameters import pH_DSC07
@@ -11,10 +12,29 @@ def get_order_analysis(measurements):
 
 
 def enforce_ts(measurements):
+    # Make all temperature and salinity values constant for each sample's measurements
     for s, sample in measurements.groupby("order_analysis"):
         M = measurements.order_analysis == s
         for col in ["temperature", "salinity"]:
             measurements.loc[M, col] = measurements.loc[M, col].median()
+    return measurements
+
+
+def enforce_comments(measurements):
+    # Apply the majority comment across each sample
+    # If there's no majority, take the earlier comment
+    for s, sample in measurements.groupby("order_analysis"):
+        M = measurements.order_analysis == s
+        s_comments = measurements[M].comments.unique()
+        if len(s_comments) > 1:
+            measurements.loc[M, "comments"] = s_comments[
+                np.argmax(
+                    [
+                        (measurements[M].comments == s_comment).sum()
+                        for s_comment in s_comments
+                    ]
+                )
+            ]
     return measurements
 
 
@@ -77,6 +97,8 @@ def read_agilent_pH(
                     Whether an additional mCP indicator shot was added for
                     this measurement.  `True` where the `sample_name` ends with
                     `"+20"`.
+                comments : str
+                    Comments to be filled in by the analyst, empty to begin.
     """
     with open(filename, "rb") as f:
         lines = f.read().decode("utf-16").splitlines()
@@ -105,7 +127,7 @@ def read_agilent_pH(
     }
     ts = table_start[0]
     te = table_end[0]
-    pH_a = (
+    measurements = (
         pd.read_fwf(
             filename,
             encoding="utf-16",
@@ -117,7 +139,9 @@ def read_agilent_pH(
         .rename(columns=pH_renamer)
         .set_index("order")
     )
-    pH_a["sample_name"] = pH_a.sample_name.where(pH_a.sample_name.notnull(), "")
+    measurements["sample_name"] = measurements.sample_name.where(
+        measurements.sample_name.notnull(), ""
+    )
     ts = table_start[1]
     te = table_end[1]
     pH_b = (
@@ -135,9 +159,9 @@ def read_agilent_pH(
     pH_b["sample_name"] = pH_b.sample_name.where(pH_b.sample_name.notnull(), "")
     for k, v in pH_b.items():
         if k == "sample_name":
-            assert (pH_a.sample_name == v).all()
+            assert (measurements.sample_name == v).all()
         else:
-            pH_a[k] = v
+            measurements[k] = v
     #  Import Comments file to get non-truncated sample_name
     with open(filename.replace(".TXT", "-COMMENTS.TXT"), "rb") as f:
         lines = f.read().decode("utf-16").splitlines()
@@ -170,24 +194,25 @@ def read_agilent_pH(
     )
     pH_c["sample_name"] = pH_c.sample_name.where(pH_c.sample_name.notnull(), "")
     # Update sample_name and append
-    for i, row in pH_a.iterrows():
+    for i, row in measurements.iterrows():
         assert pH_c.sample_name.loc[i].startswith(row.sample_name)
-    pH_a["sample_name"] = pH_c.sample_name
+    measurements["sample_name"] = pH_c.sample_name
     # Set up additional columns
-    pH_a = get_order_analysis(pH_a)
-    pH_a["pH_good"] = True
-    sns = pH_a.sample_name.str.upper().str
-    pH_a["is_tris"] = sns.startswith("TRIS") | sns.startswith("NT")
-    pH_a["extra_mcp"] = sns.endswith("-+20")
-    pH_a["pH"] = pH_DSC07(
-        pH_a.absorbance_578,
-        pH_a.absorbance_434,
-        pH_a.absorbance_730,
-        temperature=pH_a.temperature,
-        salinity=pH_a.salinity,
+    measurements = get_order_analysis(measurements)
+    measurements["pH_good"] = True
+    sns = measurements.sample_name.str.upper().str
+    measurements["is_tris"] = sns.startswith("TRIS") | sns.startswith("NT")
+    measurements["extra_mcp"] = sns.endswith("-+20")
+    measurements["pH"] = pH_DSC07(
+        measurements.absorbance_578,
+        measurements.absorbance_434,
+        measurements.absorbance_730,
+        temperature=measurements.temperature,
+        salinity=measurements.salinity,
         dye_intercept=dye_intercept,
         dye_slope=dye_slope,
     )
+    measurements["comments"] = ""
     # Enforce single temperature and salinity values for each sample
-    pH_a = enforce_ts(pH_a)
-    return pH_a
+    measurements = enforce_ts(measurements)
+    return measurements

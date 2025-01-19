@@ -1,6 +1,5 @@
 from sys import argv
 
-import koolstof as ks
 import matplotlib as mpl
 import numpy as np
 from matplotlib import pyplot as plt
@@ -21,7 +20,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import funcs, meta
+from . import meta
+from .process.read import read_excel, read_phroc
+from .process.usd import UpdatingSummaryDataset
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -53,8 +54,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("pHroc v{}".format(meta.__version__))
         # === SAMPLES TAB ==============================================================
-        # Button to import results file
-        s_button_initialise = QPushButton("Import results files")
+        # Buttons to import and export results file
+        s_button_initialise = QPushButton("Import results file")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
         self.file_loaded = False
         self.s_button_export_phroc = QPushButton("Export to .phroc")
@@ -63,12 +64,12 @@ class MainWindow(QMainWindow):
         self.s_current_file = QLabel("Current file: none")
         # Table with one-per-sample information
         self.s_table_samples = QTableWidget()
-        s_table_samples_ncols = 9
+        s_table_samples_ncols = 10
         self.s_table_samples.setColumnCount(s_table_samples_ncols)
         self.s_table_samples.setHorizontalHeaderLabels(
             [
-                "Type",
                 "Sample name",
+                "Tris?",
                 "Extra\nmCP?",
                 "Salinity",
                 "Temperature\n/ °C",
@@ -76,10 +77,11 @@ class MainWindow(QMainWindow):
                 "SD(pH)",
                 "Expected\npH",
                 "Measurements\n(used / total)",
+                "Comments",
             ]
         )
-        self.s_col_sample_type = 0
-        self.s_col_sample_name = 1
+        self.s_col_sample_name = 0
+        self.s_col_is_tris = 1
         self.s_col_extra_mcp = 2
         self.s_col_salinity = 3
         self.s_col_temperature = 4
@@ -87,6 +89,15 @@ class MainWindow(QMainWindow):
         self.s_col_pH_std = 6
         self.s_col_pH_expected = 7
         self.s_col_measurements = 8
+        self.s_col_comments = 9
+        self.s_cols = {
+            self.s_col_sample_name: "sample_name",
+            self.s_col_is_tris: "is_tris",
+            self.s_col_extra_mcp: "extra_mcp",
+            self.s_col_salinity: "salinity",
+            self.s_col_temperature: "temperature",
+            self.s_col_comments: "comments",
+        }
         header = self.s_table_samples.horizontalHeader()
         for c in range(s_table_samples_ncols):
             header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
@@ -181,11 +192,20 @@ class MainWindow(QMainWindow):
         tabs.setTabPosition(QTabWidget.West)
         tabs.addTab(w_samples, "Samples")
         tabs.addTab(w_measurements, "Measurements")
+        tabs.currentChanged.connect(self.change_tab)
         self.setCentralWidget(tabs)
         # If provided, import file
         if len(argv) > 1:
             self.filename = argv[1]
             self._import_dataset_and_initialise()
+
+    def change_tab(self, index):
+        if index == 0:
+            self.s_create_table_samples()
+            self.s_plot_samples()
+        elif index == 1:
+            self.m_refresh_table_measurements()
+            self.m_plot_measurements()
 
     def initialise(self):
         # Set up samples tab
@@ -207,13 +227,11 @@ class MainWindow(QMainWindow):
 
     def _import_dataset_and_initialise(self):
         if self.filename.lower().endswith(".txt"):
-            self.measurements, self.samples = funcs.read_measurements_create_samples(
-                self.filename
-            )
+            self.usd = UpdatingSummaryDataset(self.filename)
         elif self.filename.lower().endswith(".phroc"):
-            self.measurements, self.samples = funcs.read_phroc(self.filename)
+            self.usd = read_phroc(self.filename)
         elif self.filename.lower().endswith(".xlsx"):
-            self.measurements, self.samples = funcs.read_excel(self.filename)
+            self.usd = read_excel(self.filename)
         self.initialise()
         self.file_loaded = True
 
@@ -232,9 +250,9 @@ class MainWindow(QMainWindow):
         if self.s_table_samples_U is not None:
             self.s_table_samples.cellChanged.disconnect(self.s_table_samples_U)
         self.s_table_samples.clearContents()
-        self.s_table_samples.setRowCount(self.samples.shape[0])
+        self.s_table_samples.setRowCount(self.usd.samples.shape[0])
         # Loop through samples and set values in GUI table
-        for s, sample in self.samples.iterrows():
+        for s, sample in self.usd.samples.iterrows():
             r = s - 1
             self.s_set_all_cells(r, sample)
         self.s_table_samples_U = self.s_table_samples.cellChanged.connect(
@@ -242,36 +260,38 @@ class MainWindow(QMainWindow):
         )
 
     def s_set_all_cells(self, r, sample):
-        self.s_set_cell_sample_type(r, sample)
-        self.s_set_cell_extra_mcp(r, sample)
         self.s_set_cell_sample_name(r, sample)
+        self.s_set_cell_is_tris(r, sample)
+        self.s_set_cell_extra_mcp(r, sample)
         self.s_set_cell_salinity(r, sample)
         self.s_set_cell_temperature(r, sample)
         self.s_set_cell_pH(r, sample)
         self.s_set_cell_pH_std(r, sample)
         self.s_set_cell_pH_expected(r, sample)
         self.s_set_cell_measurements(r, sample)
+        self.s_set_cell_comments(r, sample)
 
-    def s_set_cell_sample_type(self, r, sample):
+    def s_set_cell_sample_name(self, r, sample):
+        cell_sample_name = QTableWidgetItem(sample.sample_name)
+        self.s_table_samples.setItem(r, self.s_col_sample_name, cell_sample_name)
+
+    def s_set_cell_is_tris(self, r, sample):
+        cell_is_tris = QTableWidgetItem()
+        cell_is_tris.setFlags(cell_is_tris.flags() & ~Qt.ItemIsEditable)
         if sample.is_tris:
-            sample_type = "Tris"
+            cell_is_tris.setCheckState(Qt.Checked)
         else:
-            sample_type = "Sample"
-        cell_sample_type = QTableWidgetItem(sample_type)
-        self.s_table_samples.setItem(r, self.s_col_sample_type, cell_sample_type)
+            cell_is_tris.setCheckState(Qt.Unchecked)
+        self.s_table_samples.setItem(r, self.s_col_is_tris, cell_is_tris)
 
     def s_set_cell_extra_mcp(self, r, sample):
         cell_extra_mcp = QTableWidgetItem()
+        cell_extra_mcp.setFlags(cell_extra_mcp.flags() & ~Qt.ItemIsEditable)
         if sample.extra_mcp:
             cell_extra_mcp.setCheckState(Qt.Checked)
         else:
             cell_extra_mcp.setCheckState(Qt.Unchecked)
         self.s_table_samples.setItem(r, self.s_col_extra_mcp, cell_extra_mcp)
-
-    def s_set_cell_sample_name(self, r, sample):
-        cell_sample_name = QTableWidgetItem(sample.sample_name)
-
-        self.s_table_samples.setItem(r, self.s_col_sample_name, cell_sample_name)
 
     def s_set_cell_salinity(self, r, sample):
         cell_salinity = QTableWidgetItem(str(sample.salinity))
@@ -310,49 +330,55 @@ class MainWindow(QMainWindow):
         cell_measurements.setTextAlignment(Qt.AlignCenter)
         self.s_table_samples.setItem(r, self.s_col_measurements, cell_measurements)
 
+    def s_set_cell_comments(self, r, sample):
+        cell_comments = QTableWidgetItem(sample.comments)
+        self.s_table_samples.setItem(r, self.s_col_comments, cell_comments)
+
     def s_plot_samples(self):
+        samples = self.usd.samples
+        measurements = self.usd.measurements
         ax = self.s_fig_samples.ax[0]
         ax.cla()
-        ax.scatter(self.samples.index, self.samples.pH, s=50, c="xkcd:pale purple")
+        ax.scatter(samples.index, samples.pH, s=50, c="xkcd:pale purple")
         ax.scatter(
-            self.samples.index,
-            self.samples.pH_tris_expected,
+            samples.index,
+            samples.pH_tris_expected,
             marker="+",
             s=50,
             c="xkcd:dark purple",
         )
         ax.scatter(
-            self.measurements.xpos[self.measurements.pH_good],
-            self.measurements.pH[self.measurements.pH_good],
+            measurements.xpos[measurements.pH_good],
+            measurements.pH[measurements.pH_good],
             s=10,
             c="xkcd:dark",
             alpha=0.8,
             edgecolor="none",
         )
         ax.scatter(
-            self.measurements.xpos[~self.measurements.pH_good],
-            self.measurements.pH[~self.measurements.pH_good],
+            measurements.xpos[~measurements.pH_good],
+            measurements.pH[~measurements.pH_good],
             s=10,
             c="xkcd:dark",
             alpha=0.8,
             marker="x",
         )
         ax.set_ylabel("pH (total scale)")
-        ax.set_xticks(self.samples.index)
-        ax.set_xticklabels(self.samples.sample_name, rotation=-90)
+        ax.set_xticks(samples.index)
+        ax.set_xticklabels(samples.sample_name, rotation=-90)
         ax.tick_params(top=True, labeltop=True, bottom=True, labelbottom=False)
         ax = self.s_fig_samples.ax[1]
         ax.cla()
-        ax.scatter(self.samples.index, self.samples.salinity, s=50, c="xkcd:sage")
+        ax.scatter(samples.index, samples.salinity, s=50, c="xkcd:sage")
         ax.set_ylabel("Salinity")
-        ax.set_xticks(self.samples.index)
+        ax.set_xticks(samples.index)
         ax.tick_params(top=True, labeltop=False, bottom=True, labelbottom=False)
         ax = self.s_fig_samples.ax[2]
         ax.cla()
-        ax.scatter(self.samples.index, self.samples.temperature, c="xkcd:coral")
+        ax.scatter(samples.index, samples.temperature, c="xkcd:coral")
         ax.set_ylabel("Temperature / °C")
-        ax.set_xticks(self.samples.index)
-        ax.set_xticklabels(self.samples.sample_name, rotation=-90)
+        ax.set_xticks(samples.index)
+        ax.set_xticklabels(samples.sample_name, rotation=-90)
         ax.tick_params(top=True, labeltop=False, bottom=True, labelbottom=True)
         for ax in self.s_fig_samples.ax:
             ax.grid(alpha=0.2)
@@ -360,85 +386,32 @@ class MainWindow(QMainWindow):
         self.s_fig_samples.draw()
 
     def s_update_table_samples(self, r, c):
-        # === UPDATE SELF.SAMPLES AND SELF.MEASUREMENTS ================================
+        # === UPDATE SELF.USD ==========================================================
         v = self.s_table_samples.item(r, c).data(0)  # the updated value
         s = r + 1  # the index for the corresponding row of self.samples
-        M = self.measurements.order_analysis == s  # the corresponding measurements
-        Mg = M & self.measurements.pH_good  # the corresponding good measurements
-        # User has edited sample_type
-        if c == self.s_col_sample_type:
-            is_tris = v.upper() in ["TRIS", "T"]
-            self.measurements.loc[M, "is_tris"] = is_tris
-            self.samples.loc[s, "is_tris"] = is_tris
-        # User has edited sample_name
-        elif c == self.s_col_sample_name:
-            self.measurements.loc[M, "sample_name"] = v
-            self.samples.loc[s, "sample_name"] = v
-        # User has edited extra_mcp checkbox
-        elif c == self.s_col_extra_mcp:
-            extra_mcp = self.s_table_samples.item(r, c).checkState() == Qt.Checked
-            self.measurements.loc[M, "extra_mcp"] = extra_mcp
-            self.samples.loc[s, "extra_mcp"] = extra_mcp
-        # User has edited salinity
-        elif c == self.s_col_salinity:
-            self.measurements.loc[M, "salinity"] = float(v)
-            self.samples.loc[s, "salinity"] = float(v)
-        # User has edited temperature
-        elif c == self.s_col_temperature:
-            self.measurements.loc[M, "temperature"] = float(v)
-            self.samples.loc[s, "temperature"] = float(v)
-        # If salinity or temperature were edited, recalculate pH
-        if c in [self.s_col_salinity, self.s_col_temperature]:
-            self.measurements.loc[M, "pH"] = ks.spectro.pH_NIOZ(
-                self.measurements[M].abs578,
-                self.measurements[M].abs434,
-                self.measurements[M].abs730,
-                temperature=self.samples.loc[s].temperature,
-                salinity=self.samples.loc[s].salinity,
-            )
-            self.samples.loc[s, "pH"] = self.measurements[Mg].pH.mean()
-            self.samples.loc[s, "pH_std"] = self.measurements[Mg].pH.std()
-        # If sample_type, temperature or salinity were edited, recalculate
-        # pH_tris_expected
-        if c in [self.s_col_sample_type, self.s_col_temperature, self.s_col_salinity]:
-            if self.samples.loc[s, "is_tris"]:
-                self.samples.loc[s, "pH_tris_expected"] = ks.pH_tris_DD98(
-                    temperature=self.samples.loc[s].temperature,
-                    salinity=self.samples.loc[s].salinity,
-                )
-            else:
-                self.samples.loc[s, "pH_tris_expected"] = np.nan
-        # === UPDATE GUI SAMPLES TABLE =================================================
-        # Next, we have to disconnect the cellChanged signal to prevent recursion
-        self.s_table_samples.cellChanged.disconnect(self.s_table_samples_U)
-        sample = self.samples.loc[s]
-        # If sample_type, temperature or salinity were edited, update sample_type and
-        # pH_expected
-        if c in [self.s_col_sample_type, self.s_col_temperature, self.s_col_salinity]:
-            self.s_set_cell_sample_type(r, sample)
-            self.s_set_cell_pH_expected(r, sample)
-        # If salinity, temperature or pH were edited, update pH, pH_std and measurements
-        if c in [self.s_col_salinity, self.s_col_temperature, self.s_col_pH]:
-            self.s_set_cell_pH(r, sample)
-            self.s_set_cell_pH_std(r, sample)
-            self.s_set_cell_measurements(r, sample)
-        # Re-connect the cellChanged signal
-        self.s_table_samples_U = self.s_table_samples.cellChanged.connect(
-            self.s_update_table_samples
-        )
-        # === UPDATE GUI MEASUREMENTS TAB ==============================================
-        # But only if this update wasn't caused by a change in the measurements tab!
-        if c != self.s_col_pH:  # this only happens if the change was prompted there
-            self.m_refresh_table_measurements()
-        # === UPDATE GUI SAMPLES PLOT ==================================================
+        col = self.s_cols[c]  # the column name in self.usd.samples
+        # Update the dataset
+        if col in ["salinity", "temperature"]:
+            try:
+                v = float(v)
+            except ValueError:
+                # Don't allow temperature and salinity to be changed to non-numbers
+                v = self.usd.samples.loc[s, col]
+        elif col in ["is_tris", "extra_mcp"]:
+            v = self.s_table_samples.item(r, c).checkState() == Qt.Checked
+        self.usd.set_sample(s, **{col: v})
+        # === UPDATE GUI SAMPLES TABLE & PLOT ==========================================
+        self.s_create_table_samples()
         self.s_plot_samples()
 
     def m_create_table_measurements(self):
         s = self.m_which_sample
-        sample = self.samples.loc[s]
-        M = self.measurements.order_analysis == s
+        sample = self.usd.samples.loc[s]
+        M = self.usd.measurements.order_analysis == s
         self.m_sample_name.setText(
-            "Sample: {} ({} of {})".format(sample.sample_name, s, self.samples.shape[0])
+            "Sample {} of {}: {}".format(
+                s, self.usd.samples.shape[0], sample.sample_name
+            )
         )
         self.m_sample_salinity.setText("Salinity: {}".format(sample.salinity))
         self.m_sample_temperature.setText(
@@ -452,7 +425,7 @@ class MainWindow(QMainWindow):
         self.m_table_measurements.clearContents()
         self.m_table_measurements.setRowCount(sample.pH_count)
         # Loop through measurements and set values in GUI table
-        for r, (m, measurement) in enumerate(self.measurements.loc[M].iterrows()):
+        for r, (m, measurement) in enumerate(self.usd.measurements.loc[M].iterrows()):
             self.m_set_cell_pH(r, measurement)
         self.m_table_measurements_U = self.m_table_measurements.cellChanged.connect(
             self.m_update_table_measurements
@@ -475,18 +448,12 @@ class MainWindow(QMainWindow):
 
     def m_update_table_measurements(self, r, c):
         s = self.m_which_sample
-        sample = self.samples.loc[s]
-        M = self.measurements.order_analysis == s
-        m = self.measurements[M].index[r]
-        self.measurements.loc[m, "pH_good"] = (
-            self.m_table_measurements.item(r, c).checkState() == Qt.Checked
+        M = self.usd.measurements.order_analysis == s
+        m = self.usd.measurements[M].index[r]
+        self.usd.set_measurement(
+            m, pH_good=(self.m_table_measurements.item(r, c).checkState() == Qt.Checked)
         )
-        Mg = M & self.measurements.pH_good
-        self.samples.loc[s, "pH"] = self.measurements[Mg].pH.mean()
-        self.samples.loc[s, "pH_std"] = self.measurements[Mg].pH.std()
-        self.samples.loc[s, "pH_good"] = Mg.sum()
         self.m_refresh_table_measurements()
-        self.s_update_table_samples(s - 1, self.s_col_pH)
 
     def m_refresh_table_measurements(self):
         # First, we have to disconnect the cellChanged signal to prevent recursion
@@ -494,16 +461,17 @@ class MainWindow(QMainWindow):
         self.m_create_table_measurements()
 
     def m_plot_measurements(self):
-        sample = self.samples.loc[self.m_which_sample]
+        sample = self.usd.samples.loc[self.m_which_sample]
+        measurements = self.usd.measurements
         ax = self.m_fig_measurements.ax
         ax.cla()
-        M = self.measurements.order_analysis == self.m_which_sample
-        Mg = M & self.measurements.pH_good
-        Mb = M & ~self.measurements.pH_good
+        M = measurements.order_analysis == self.m_which_sample
+        Mg = M & measurements.pH_good
+        Mb = M & ~measurements.pH_good
         fx = 1 + np.arange(M.sum())
-        L = self.measurements.pH_good[M].values
-        ax.scatter(fx[L], self.measurements[Mg].pH)
-        ax.scatter(fx[~L], self.measurements[Mb].pH, marker="x")
+        L = measurements.pH_good[M].values
+        ax.scatter(fx[L], measurements[Mg].pH)
+        ax.scatter(fx[~L], measurements[Mb].pH, marker="x")
         ax.axhline(sample.pH)
         if sample.is_tris:
             ax.axhline(sample.pH_tris_expected, ls=":")
@@ -512,11 +480,11 @@ class MainWindow(QMainWindow):
         ylim = ax.get_ylim()
         ydiff = ylim[1] - ylim[0]
         if ydiff < 0.002:
-            sdiff = self.measurements[M].pH.max() - self.measurements[M].pH.min()
+            sdiff = measurements[M].pH.max() - measurements[M].pH.min()
             yextra = (0.002 - sdiff) / 2
             ylim = (
-                self.measurements[M].pH.min() - yextra,
-                self.measurements[M].pH.max() + yextra,
+                measurements[M].pH.min() - yextra,
+                measurements[M].pH.max() + yextra,
             )
             ydiff = ylim[1] - ylim[0]
             ax.set_ylim(ylim)
@@ -536,12 +504,12 @@ class MainWindow(QMainWindow):
     def m_to_sample_prev(self):
         self.m_which_sample -= 1
         if self.m_which_sample < 1:
-            self.m_which_sample = self.samples.shape[0]
+            self.m_which_sample = self.usd.samples.shape[0]
         self.m_refresh_table_measurements()
 
     def m_to_sample_next(self):
         self.m_which_sample += 1
-        if self.m_which_sample > self.samples.shape[0]:
+        if self.m_which_sample > self.usd.samples.shape[0]:
             self.m_which_sample = 1
         self.m_refresh_table_measurements()
 
@@ -552,58 +520,18 @@ class MainWindow(QMainWindow):
         s_new = s + direction
         # Only do anything if we're not already on the first (-1) or last (+1) sample
         if direction == -1:
-            condition = s_new > 0
-            m_ix = 0
+            neither_first_nor_last = s_new > 0
+            m_ix = 0  # the iloc in the subset of the measurements table to move (first)
         elif direction == 1:
-            condition = s_new < self.samples.shape[0]
-            m_ix = -1
-        if condition:
-            sample = self.samples.loc[s]
-            M = self.measurements.order_analysis == s
-            m = self.measurements[M].index[m_ix]
-            # Move the sample
-            self.measurements.loc[m, "sample_name"] = self.samples.loc[
-                s_new
-            ].sample_name
-            original_order_analysis = self.measurements.loc[m, "order_analysis"]
-            self.measurements.loc[m, "order_analysis"] += direction
-            self.measurements.loc[m, "is_tris"] = self.measurements.loc[
-                m + direction, "is_tris"
-            ]
-            # Update samples table etc. if this move does not completely remove a sample
-            if M.sum() > 1:
-                Mu = (  # the current sample (now with one fewer measurement)
-                    self.measurements.order_analysis == s
-                )
-                Mp = (  # the other sample (now with one extra measurement)
-                    self.measurements.order_analysis == s_new
-                )
-                for _s, _M in zip((s, s_new), (Mu, Mp)):
-                    self.samples.loc[_s, "pH"] = self.measurements[_M].pH.mean()
-                    self.samples.loc[_s, "pH_std"] = self.measurements[_M].pH.std()
-                    self.samples.loc[_s, "pH_count"] = _M.sum()
-                    self.samples.loc[_s, "pH_good"] = (
-                        _M & self.measurements.pH_good
-                    ).sum()
-                funcs.get_xpos(self.measurements, self.samples)
-                self.s_update_table_samples(s - 1, self.s_col_pH)
-                self.s_update_table_samples(s_new - 1, self.s_col_pH)
-            else:  # if we have now completely removed this sample
-                # Update order_analysis
-                self.measurements.loc[
-                    self.measurements.order_analysis > original_order_analysis,
-                    "order_analysis",
-                ] -= 1
-                # Recompute samples table
-                self.samples = funcs.get_samples_from_measurements(self.measurements)
-                # Remove removed sample from GUI samples table and refresh adjusted row
-                r = s - 1
-                self.s_table_samples.removeRow(r)
-                if direction == -1:
-                    self.m_which_sample -= 1
-                    self.s_update_table_samples(r - 1, self.s_col_pH)
-                else:
-                    self.s_update_table_samples(r, self.s_col_pH)
+            neither_first_nor_last = s_new < self.usd.samples.shape[0]
+            m_ix = -1  # the iloc in the subset of the measurements table to move (last)
+        if neither_first_nor_last:
+            M = self.usd.measurements.order_analysis == s
+            m = self.usd.measurements[M].index[m_ix]  # the measurement to move
+            # Move the sample by renaming
+            self.usd.set_measurement(
+                m, sample_name=self.usd.samples.sample_name.loc[s_new]
+            )
             self.m_refresh_table_measurements()
 
     def m_first_to_prev(self):
@@ -618,21 +546,15 @@ class MainWindow(QMainWindow):
             split_at = int(split_at)
             print("Let's move measurement {} onwards to a new sample!".format(split_at))
             s = self.m_which_sample
-            M = self.measurements.order_analysis == s
-            Mn = self.measurements[M].index[(split_at - 1) :]  # the new sample
-            # Update order_analysis
-            self.measurements.loc[
-                self.measurements.order_analysis > s, "order_analysis"
-            ] += 1
-            self.measurements.loc[Mn, "order_analysis"] = s + 1
-            # Recompute samples table
-            self.samples = funcs.get_samples_from_measurements(self.measurements)
-            self.s_table_samples.insertRow(s)
-            self.s_update_table_samples(s - 1, self.s_col_pH)
+            M = self.usd.measurements.order_analysis == s
+            Mn = self.usd.measurements[M].index[(split_at - 1) :]  # the new sample
+            # Update by renaming - note that if the following sample already ends with
+            # "__SPLIT" then the new split will just add data to that next sample,
+            # instead of making a new one - but I think that's not really a problem
+            sample_name_new = self.usd.samples.sample_name.loc[s] + "__SPLIT"
+            self.usd.set_measurements(Mn, sample_name=sample_name_new)
             self.m_which_sample += 1
             self.m_refresh_table_measurements()
-            # s_set_all_cells below is the slow step for this entire function
-            self.s_set_all_cells(s, self.samples.loc[self.m_which_sample])
 
     def export_prep(self, extension):
         dialog_save = QFileDialog(self, filter="*.{}".format(extension))
@@ -648,10 +570,10 @@ class MainWindow(QMainWindow):
         dialog_save = self.export_prep("phroc")
         if dialog_save.exec():
             filename = dialog_save.selectedFiles()[0]
-            funcs.write_phroc(filename, self.measurements, self.samples)
+            self.usd.to_phroc(filename)
 
     def export_excel(self):
         dialog_save = self.export_prep("xlsx")
         if dialog_save.exec():
             filename = dialog_save.selectedFiles()[0]
-            funcs.write_excel(filename, self.measurements, self.samples)
+            self.usd.to_excel(filename)

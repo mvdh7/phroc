@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from .parameters import pH_DSC07
+from .qc import find_windows
 
 
 def get_order_analysis(measurements):
@@ -42,6 +43,7 @@ def read_agilent_pH(
     filename: str,
     dye_intercept: float = 0,
     dye_slope: float = 0,
+    find_windows_auto: bool = False,
 ) -> pd.DataFrame:
     """Import raw pH data from the spectrophotometer.
 
@@ -55,6 +57,9 @@ def read_agilent_pH(
         Intercept of the dye correction (SOP 6b eq. 9), by default 0.
     dye_slope : float, optional
         Slope of the dye correction (SOP 6b eq. 9), by default 0.
+    find_windows_auto : bool, optional
+        Whether to automatically find windows containing good measurements, by
+        default False.
 
     Returns
     -------
@@ -199,7 +204,6 @@ def read_agilent_pH(
     measurements["sample_name"] = pH_c.sample_name
     # Set up additional columns
     measurements = get_order_analysis(measurements)
-    measurements["pH_good"] = True
     sns = measurements.sample_name.str.upper().str
     measurements["is_tris"] = sns.startswith("TRIS") | sns.startswith("NT")
     measurements["extra_mcp"] = sns.endswith("-+20")
@@ -212,6 +216,9 @@ def read_agilent_pH(
         dye_intercept=dye_intercept,
         dye_slope=dye_slope,
     )
+    measurements["pH_good"] = True
+    if find_windows_auto:
+        measurements.pipe(find_windows)
     measurements["comments"] = ""
     # Enforce single temperature and salinity values for each sample
     measurements = enforce_ts(measurements)

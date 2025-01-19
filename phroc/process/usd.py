@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from .parameters import pH_DSC07, pH_tris_DD98
+from .qc import find_window
 from .read_raw import enforce_comments, enforce_ts, get_order_analysis, read_agilent_pH
 from .write import write_excel, write_phroc
 
@@ -14,6 +15,9 @@ def _get_samples_from_measurements(sample):
             "temperature": sample.temperature.mean(),
             "pH": sample.pH[sample.pH_good].mean(),
             "pH_std": sample.pH[sample.pH_good].std(),
+            "pH_range": (
+                sample.pH[sample.pH_good].max() - sample.pH[sample.pH_good].min()
+            ),
             "pH_count": sample.pH.size,
             "pH_good": sample.pH_good.sum(),
             "is_tris": sample.is_tris.all(),
@@ -87,6 +91,9 @@ class UpdatingSummaryDataset:
                 Mg = M & sm.pH_good
                 self.samples.loc[s, "pH"] = sm.loc[Mg, "pH"].mean()
                 self.samples.loc[s, "pH_std"] = sm.loc[Mg, "pH"].std()
+                self.samples.loc[s, "pH_range"] = (
+                    sm.loc[Mg, "pH"].max() - sm.loc[Mg, "pH"].min()
+                )
             elif col == "sample_name":
                 # This one would be too fiddly to make all the changes manually, so it's
                 # safer to stick with recreating the samples table from scratch
@@ -112,6 +119,9 @@ class UpdatingSummaryDataset:
                     Mg = M & sm.pH_good
                     self.samples.loc[s, "pH"] = sm.loc[Mg, "pH"].mean()
                     self.samples.loc[s, "pH_std"] = sm.loc[Mg, "pH"].std()
+                    self.samples.loc[s, "pH_range"] = (
+                        sm.loc[Mg, "pH"].max() - sm.loc[Mg, "pH"].min()
+                    )
                 elif col == "sample_name":
                     # This one would be too fiddly to make all the changes manually, so
                     # it's safer to stick with recreating the samples table from scratch
@@ -165,6 +175,9 @@ class UpdatingSummaryDataset:
                 )
                 self.samples.loc[order_analysis, "pH"] = sm.loc[Mg, "pH"].mean()
                 self.samples.loc[order_analysis, "pH_std"] = sm.loc[Mg, "pH"].std()
+                self.samples.loc[order_analysis, "pH_range"] = (
+                    sm.loc[Mg, "pH"].max() - sm.loc[Mg, "pH"].min()
+                )
                 if self.samples.loc[order_analysis, "is_tris"]:
                     self.samples.loc[order_analysis, "pH_tris_expected"] = pH_tris_DD98(
                         temperature=self.samples.loc[order_analysis].temperature,
@@ -189,3 +202,11 @@ class UpdatingSummaryDataset:
 
     def to_phroc(self, filename):
         write_phroc(filename, self)
+
+    def find_windows(self, cutoff=0.001, minimum_values=3):
+        for s, sample in self.measurements.groupby("order_analysis"):
+            M = self.measurements.order_analysis == s
+            window = find_window(
+                sample.pH.values, cutoff=cutoff, minimum_values=minimum_values
+            )
+            self.set_measurements(M, pH_good=window)

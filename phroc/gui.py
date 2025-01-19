@@ -5,12 +5,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QTableWidget,
@@ -23,6 +25,10 @@ from PySide6.QtWidgets import (
 from . import meta
 from .process.read import read_excel, read_phroc
 from .process.usd import UpdatingSummaryDataset
+
+
+LightRed = QColor(255, 71, 76)
+LightOrange = QColor(253, 170, 72)
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -57,6 +63,9 @@ class MainWindow(QMainWindow):
         # Buttons to import and export results file
         s_button_initialise = QPushButton("Import results file")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
+        self.s_button_find_windows = QPushButton(
+            "Automatically find measurement windows"
+        )
         self.file_loaded = False
         self.s_button_export_phroc = QPushButton("Export to .phroc")
         self.s_button_export_excel = QPushButton("Export to .xlsx")
@@ -118,10 +127,14 @@ class MainWindow(QMainWindow):
         self.m_sample_salinity = QLabel("Salinity")
         self.m_sample_temperature = QLabel("Temperature / °C")
         self.m_sample_pH = QLabel("pH")
+        self.m_comments = QLineEdit("")
+        self.m_comments.textEdited.connect(self.m_edit_comments)
         self.m_table_measurements = QTableWidget()
         self.m_table_measurements.setColumnCount(1)
         self.m_table_measurements.setHorizontalHeaderLabels(["pH"])
         # Previous / next sample buttons
+        self.m_button_first = QPushButton("⇐ First sample")
+        self.m_button_final = QPushButton("Final sample ⇒")
         self.m_button_prev = QPushButton("← Previous sample")
         self.m_button_next = QPushButton("Next sample →")
         # Move measurements button
@@ -137,6 +150,7 @@ class MainWindow(QMainWindow):
         # - Samples table column
         l_samples_table = QVBoxLayout()
         l_samples_table.addWidget(s_button_initialise)
+        l_samples_table.addWidget(self.s_button_find_windows)
         l_samples_table.addWidget(self.s_current_file)
         l_samples_table.addWidget(self.s_table_samples)
         l_samples_export = QHBoxLayout()
@@ -159,14 +173,40 @@ class MainWindow(QMainWindow):
         l_samples.addWidget(w_samples_plot)
         w_samples = QWidget()
         w_samples.setLayout(l_samples)
-        # - Measurements central column
+        # MEASUREMENTS TAB
+        # - Measurements tab central column
         l_measurements_central = QVBoxLayout()
+        # --- Figure
         l_measurements_central.addWidget(self.m_fig_measurements_nav)
         l_measurements_central.addWidget(self.m_fig_measurements)
-        l_measurements_central.addWidget(self.m_sample_name)
-        l_measurements_central.addWidget(self.m_sample_salinity)
-        l_measurements_central.addWidget(self.m_sample_temperature)
-        l_measurements_central.addWidget(self.m_sample_pH)
+        # --- Two-column info section
+        # ----- Left column
+        l_measurements_info_left = QVBoxLayout()
+        l_measurements_info_left.addWidget(self.m_sample_name)
+        l_measurements_info_left.addWidget(self.m_sample_pH)
+        w_measurements_info_left = QWidget()
+        w_measurements_info_left.setLayout(l_measurements_info_left)
+        # ----- Right column
+        l_measurements_info_right = QVBoxLayout()
+        l_measurements_info_right.addWidget(self.m_sample_salinity)
+        l_measurements_info_right.addWidget(self.m_sample_temperature)
+        w_measurements_info_right = QWidget()
+        w_measurements_info_right.setLayout(l_measurements_info_right)
+        # ----- Combine columns
+        l_measurements_info = QHBoxLayout()
+        l_measurements_info.addWidget(w_measurements_info_left)
+        l_measurements_info.addWidget(w_measurements_info_right)
+        w_measurements_info = QWidget()
+        w_measurements_info.setLayout(l_measurements_info)
+        l_measurements_central.addWidget(w_measurements_info)
+        # --- Comments box
+        l_m_comments_header = QHBoxLayout()
+        l_m_comments_header.addWidget(QLabel("Comments:"))
+        l_m_comments_header.addWidget(self.m_comments)
+        w_m_comments_header = QWidget()
+        w_m_comments_header.setLayout(l_m_comments_header)
+        l_measurements_central.addWidget(w_m_comments_header)
+        # --- Buttons below info section
         l_measurements_central.addWidget(self.m_button_first_to_prev)
         l_measurements_central.addWidget(self.m_table_measurements)
         l_measurements_central.addWidget(self.m_button_last_to_next)
@@ -178,23 +218,39 @@ class MainWindow(QMainWindow):
         l_measurements_central.addWidget(w_measurements_split)
         w_measurements_central = QWidget()
         w_measurements_central.setLayout(l_measurements_central)
-        # - Measurements tab
+        # - Measurements tab left column
+        l_m_left = QVBoxLayout()
+        l_m_left.addStretch()
+        l_m_left.addWidget(self.m_button_first)
+        l_m_left.addWidget(self.m_button_prev)
+        l_m_left.addStretch()
+        w_m_left = QWidget()
+        w_m_left.setLayout(l_m_left)
+        # - Measurements tab right column
+        l_m_right = QVBoxLayout()
+        l_m_right.addStretch()
+        l_m_right.addWidget(self.m_button_final)
+        l_m_right.addWidget(self.m_button_next)
+        l_m_right.addStretch()
+        w_m_right = QWidget()
+        w_m_right.setLayout(l_m_right)
+        # - Assemble measurements tab
         l_measurements = QHBoxLayout()
         l_measurements.addStretch()
-        l_measurements.addWidget(self.m_button_prev)
+        l_measurements.addWidget(w_m_left)
         l_measurements.addWidget(w_measurements_central)
-        l_measurements.addWidget(self.m_button_next)
+        l_measurements.addWidget(w_m_right)
         l_measurements.addStretch()
         w_measurements = QWidget()
         w_measurements.setLayout(l_measurements)
-        # Tabs
+        # Assemble tabs
         tabs = QTabWidget()
         tabs.setTabPosition(QTabWidget.West)
         tabs.addTab(w_samples, "Samples")
         tabs.addTab(w_measurements, "Measurements")
         tabs.currentChanged.connect(self.change_tab)
         self.setCentralWidget(tabs)
-        # If provided, import file
+        # If provided on command line, import file
         if len(argv) > 1:
             self.filename = argv[1]
             self._import_dataset_and_initialise()
@@ -207,12 +263,22 @@ class MainWindow(QMainWindow):
             self.m_refresh_table_measurements()
             self.m_plot_measurements()
 
+    def m_edit_comments(self, text):
+        self.usd.set_sample(self.m_which_sample, comments=text)
+
+    def auto_find_windows(self):
+        self.usd.find_windows(cutoff=0.001, minimum_values=3)
+        self.s_create_table_samples()
+        self.s_plot_samples()
+        # self.s_table_samples.item(0, 0).setBackground(QBrush)
+
     def initialise(self):
         # Set up samples tab
         self.s_create_table_samples()
         self.s_plot_samples()
         self.s_button_export_phroc.released.connect(self.export_phroc)
         self.s_button_export_excel.released.connect(self.export_excel)
+        self.s_button_find_windows.released.connect(self.auto_find_windows)
         # Set up measurements tab
         self.m_which_sample = 1
         if not self.file_loaded:
@@ -220,6 +286,8 @@ class MainWindow(QMainWindow):
             self.m_button_split.released.connect(self.m_split)
             self.m_button_prev.released.connect(self.m_to_sample_prev)
             self.m_button_next.released.connect(self.m_to_sample_next)
+            self.m_button_first.released.connect(self.m_to_sample_first)
+            self.m_button_final.released.connect(self.m_to_sample_final)
             self.m_button_first_to_prev.released.connect(self.m_first_to_prev)
             self.m_button_last_to_next.released.connect(self.m_last_to_next)
         else:
@@ -296,6 +364,8 @@ class MainWindow(QMainWindow):
     def s_set_cell_salinity(self, r, sample):
         cell_salinity = QTableWidgetItem(str(sample.salinity))
         cell_salinity.setTextAlignment(Qt.AlignCenter)
+        if sample.salinity < 0:
+            cell_salinity.setBackground(LightRed)
         self.s_table_samples.setItem(r, self.s_col_salinity, cell_salinity)
 
     def s_set_cell_temperature(self, r, sample):
@@ -311,6 +381,11 @@ class MainWindow(QMainWindow):
     def s_set_cell_pH_std(self, r, sample):
         cell_pH_std = QTableWidgetItem("{:.4f}".format(sample.pH_std))
         cell_pH_std.setFlags(cell_pH_std.flags() & ~Qt.ItemIsEditable)
+
+        if sample.pH_range > 0.001:
+            cell_pH_std.setBackground(LightOrange)
+        if sample.pH_range > 0.0012:
+            cell_pH_std.setBackground(LightRed)
         self.s_table_samples.setItem(r, self.s_col_pH_std, cell_pH_std)
 
     def s_set_cell_pH_expected(self, r, sample):
@@ -422,6 +497,7 @@ class MainWindow(QMainWindow):
                 sample.pH, sample.pH_std, sample.pH_good, sample.pH_count
             )
         )
+        self.m_comments.setText(sample.comments)
         self.m_table_measurements.clearContents()
         self.m_table_measurements.setRowCount(sample.pH_count)
         # Loop through measurements and set values in GUI table
@@ -505,6 +581,14 @@ class MainWindow(QMainWindow):
         self.m_which_sample -= 1
         if self.m_which_sample < 1:
             self.m_which_sample = self.usd.samples.shape[0]
+        self.m_refresh_table_measurements()
+
+    def m_to_sample_first(self):
+        self.m_which_sample = 1
+        self.m_refresh_table_measurements()
+
+    def m_to_sample_final(self):
+        self.m_which_sample = self.usd.samples.shape[0]
         self.m_refresh_table_measurements()
 
     def m_to_sample_next(self):

@@ -127,12 +127,15 @@ class MainWindow(QMainWindow):
         self.m_sample_salinity = QLabel("Salinity")
         self.m_sample_temperature = QLabel("Temperature / °C")
         self.m_sample_pH = QLabel("pH")
+        self.m_sample_pH_range = QLabel("Range")
         self.m_comments = QLineEdit("")
         self.m_comments.textEdited.connect(self.m_edit_comments)
         self.m_table_measurements = QTableWidget()
         self.m_table_measurements.setColumnCount(1)
         self.m_table_measurements.setHorizontalHeaderLabels(["pH"])
         # Previous / next sample buttons
+        self.m_sample_name_combo = QComboBox()
+        self.m_sample_name_combo_U = None
         self.m_button_first = QPushButton("⇐ First sample")
         self.m_button_final = QPushButton("Final sample ⇒")
         self.m_button_prev = QPushButton("← Previous sample")
@@ -182,8 +185,10 @@ class MainWindow(QMainWindow):
         # --- Two-column info section
         # ----- Left column
         l_measurements_info_left = QVBoxLayout()
-        l_measurements_info_left.addWidget(self.m_sample_name)
+        l_measurements_info_left.addWidget(self.m_sample_name_combo)
+        # l_measurements_info_left.addWidget(self.m_sample_name)
         l_measurements_info_left.addWidget(self.m_sample_pH)
+        l_measurements_info_left.addWidget(self.m_sample_pH_range)
         w_measurements_info_left = QWidget()
         w_measurements_info_left.setLayout(l_measurements_info_left)
         # ----- Right column
@@ -272,6 +277,10 @@ class MainWindow(QMainWindow):
         self.s_plot_samples()
         # self.s_table_samples.item(0, 0).setBackground(QBrush)
 
+    def m_setup_sample_name_combos(self):
+        for s, row in self.usd.samples.iterrows():
+            self.m_sample_name_combo.addItem(f"{s}: {row.sample_name}")
+
     def initialise(self):
         # Set up samples tab
         self.s_create_table_samples()
@@ -292,6 +301,11 @@ class MainWindow(QMainWindow):
             self.m_button_last_to_next.released.connect(self.m_last_to_next)
         else:
             self.m_refresh_table_measurements()
+        self.s_table_samples.cellPressed.connect(self.cell_selected)
+
+    def cell_selected(self, r, c):
+        if c == 0:
+            self.m_which_sample = r + 1
 
     def _import_dataset_and_initialise(self):
         if self.filename.lower().endswith(".txt"):
@@ -500,6 +514,20 @@ class MainWindow(QMainWindow):
                 sample.pH, sample.pH_std, sample.pH_good, sample.pH_count
             )
         )
+        if sample.pH_range <= 0.001:
+            self.m_sample_pH_range.setText("Range: {:.4f}".format(sample.pH_range))
+        elif sample.pH_range <= 0.0012:
+            self.m_sample_pH_range.setText(
+                "Range: <span style='color:rgb({}, {}, {})'>{:.4f}</span>".format(
+                    *LightOrange.getRgb()[:3], sample.pH_range
+                )
+            )
+        else:
+            self.m_sample_pH_range.setText(
+                "Range: <span style='color:rgb({}, {}, {})'>{:.4f}</span>".format(
+                    *LightRed.getRgb()[:3], sample.pH_range
+                )
+            )
         self.m_comments.setText(sample.comments)
         self.m_table_measurements.clearContents()
         self.m_table_measurements.setRowCount(sample.pH_count)
@@ -515,6 +543,17 @@ class MainWindow(QMainWindow):
         self.m_combo_split.addItem("-")
         combo_list = [str(_m) for _m in range(2, M.sum() + 1)]
         self.m_combo_split.addItems(combo_list)
+        # Disconnect to avoid recursion
+        if self.m_sample_name_combo_U is not None:
+            self.m_sample_name_combo.currentIndexChanged.disconnect(
+                self.m_sample_name_combo_U
+            )
+        self.m_sample_name_combo.clear()
+        self.m_setup_sample_name_combos()
+        self.m_sample_name_combo.setCurrentIndex(s - 1)
+        self.m_sample_name_combo_U = (
+            self.m_sample_name_combo.currentIndexChanged.connect(self.m_to_sample_user)
+        )
 
     def m_set_cell_pH(self, r, measurement):
         cell_pH = QTableWidgetItem("{:.4f}".format(measurement.pH))
@@ -577,6 +616,7 @@ class MainWindow(QMainWindow):
         # Final settings
         ax.set_xlabel("Measurement number")
         ax.set_ylabel("pH (total scale)")
+        ax.set_title(sample.sample_name)
         self.m_fig_measurements.fig.tight_layout()
         self.m_fig_measurements.draw()
 
@@ -598,6 +638,10 @@ class MainWindow(QMainWindow):
         self.m_which_sample += 1
         if self.m_which_sample > self.usd.samples.shape[0]:
             self.m_which_sample = 1
+        self.m_refresh_table_measurements()
+
+    def m_to_sample_user(self, index):
+        self.m_which_sample = index + 1
         self.m_refresh_table_measurements()
 
     def m_move_measurement(self, direction):
@@ -631,7 +675,6 @@ class MainWindow(QMainWindow):
         split_at = self.m_combo_split.currentText()
         if split_at != "-":
             split_at = int(split_at)
-            print("Let's move measurement {} onwards to a new sample!".format(split_at))
             s = self.m_which_sample
             M = self.usd.measurements.order_analysis == s
             Mn = self.usd.measurements[M].index[(split_at - 1) :]  # the new sample

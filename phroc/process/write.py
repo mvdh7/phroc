@@ -4,6 +4,18 @@ import zipfile
 
 import pandas as pd
 
+from ..meta import __version__
+
+
+def make_settings(usd):
+    return pd.DataFrame(
+        {
+            "phroc_version": __version__,
+            "dye_slope": [usd.dye_slope],
+            "dye_intercept": [usd.dye_intercept],
+        }
+    )
+
 
 def write_phroc(filename, usd):
     # filename needs to include the **absolute** path to the .phroc file to be saved!
@@ -13,9 +25,7 @@ def write_phroc(filename, usd):
         os.chdir(tdir)
         usd.measurements.to_parquet("measurements.parquet")
         usd.samples.to_parquet("samples.parquet")
-        pd.DataFrame(
-            {"dye_slope": [usd.dye_slope], "dye_intercept": [usd.dye_intercept]}
-        ).to_parquet("settings.parquet")
+        make_settings(usd).to_parquet("settings.parquet")
         if not filename.endswith(".phroc"):
             filename += ".phroc"
         with zipfile.ZipFile(filename, compression=zipfile.ZIP_LZMA, mode="w") as z:
@@ -28,9 +38,7 @@ def write_phroc(filename, usd):
 def write_excel(filename, usd):
     if not filename.endswith(".xlsx"):
         filename += ".xlsx"
-    settings = pd.DataFrame(
-        {"dye_slope": [usd.dye_slope], "dye_intercept": [usd.dye_intercept]}
-    )
+    settings = make_settings(usd)
     with pd.ExcelWriter(filename, engine="openpyxl") as w:
         usd.samples.to_excel(w, sheet_name="Samples")
         usd.measurements.to_excel(w, sheet_name="Measurements")

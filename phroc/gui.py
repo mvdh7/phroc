@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         s_button_initialise = QPushButton("Import results file")
         s_button_initialise.released.connect(self.import_dataset_and_initialise)
         self.s_button_find_windows = QPushButton(
-            "Automatically find measurement windows"
+            "Automatically detect measurement windows"
         )
         self.file_loaded = False
         self.s_button_export_phroc = QPushButton("Export to .phroc")
@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
                 "Salinity",
                 "Temperature\n/ °C",
                 "pH",
-                "SD(pH)",
+                "pH\nrange",
                 "Expected\npH",
                 "Measurements\n(used / total)",
                 "Comments",
@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         self.s_col_salinity = 3
         self.s_col_temperature = 4
         self.s_col_pH = 5
-        self.s_col_pH_std = 6
+        self.s_col_pH_spread = 6
         self.s_col_pH_expected = 7
         self.s_col_measurements = 8
         self.s_col_comments = 9
@@ -334,7 +334,7 @@ class MainWindow(QMainWindow):
         self.s_set_cell_salinity(r, sample)
         self.s_set_cell_temperature(r, sample)
         self.s_set_cell_pH(r, sample)
-        self.s_set_cell_pH_std(r, sample)
+        self.s_set_cell_pH_spread(r, sample)
         self.s_set_cell_pH_expected(r, sample)
         self.s_set_cell_measurements(r, sample)
         self.s_set_cell_comments(r, sample)
@@ -378,14 +378,14 @@ class MainWindow(QMainWindow):
         cell_pH.setFlags(cell_pH.flags() & ~Qt.ItemIsEditable)
         self.s_table_samples.setItem(r, self.s_col_pH, cell_pH)
 
-    def s_set_cell_pH_std(self, r, sample):
-        cell_pH_std = QTableWidgetItem("{:.4f}".format(sample.pH_std))
-        cell_pH_std.setFlags(cell_pH_std.flags() & ~Qt.ItemIsEditable)
+    def s_set_cell_pH_spread(self, r, sample):
+        cell_pH_spread = QTableWidgetItem("{:.4f}".format(sample.pH_range))
+        cell_pH_spread.setFlags(cell_pH_spread.flags() & ~Qt.ItemIsEditable)
         if sample.pH_range > 0.001:
-            cell_pH_std.setBackground(LightOrange)
+            cell_pH_spread.setBackground(LightOrange)
         if sample.pH_range > 0.0012:
-            cell_pH_std.setBackground(LightRed)
-        self.s_table_samples.setItem(r, self.s_col_pH_std, cell_pH_std)
+            cell_pH_spread.setBackground(LightRed)
+        self.s_table_samples.setItem(r, self.s_col_pH_spread, cell_pH_spread)
 
     def s_set_cell_pH_expected(self, r, sample):
         if sample.is_tris:
@@ -400,6 +400,10 @@ class MainWindow(QMainWindow):
         cell_measurements = QTableWidgetItem(
             "{} / {}".format(sample.pH_good, sample.pH_count)
         )
+        if sample.pH_good < 3:
+            cell_measurements.setBackground(LightOrange)
+        if sample.pH_good < 1:
+            cell_measurements.setBackground(LightRed)
         cell_measurements.setFlags(cell_measurements.flags() & ~Qt.ItemIsEditable)
         cell_measurements.setTextAlignment(Qt.AlignCenter)
         self.s_table_samples.setItem(r, self.s_col_measurements, cell_measurements)

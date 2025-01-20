@@ -381,7 +381,6 @@ class MainWindow(QMainWindow):
     def s_set_cell_pH_std(self, r, sample):
         cell_pH_std = QTableWidgetItem("{:.4f}".format(sample.pH_std))
         cell_pH_std.setFlags(cell_pH_std.flags() & ~Qt.ItemIsEditable)
-
         if sample.pH_range > 0.001:
             cell_pH_std.setBackground(LightOrange)
         if sample.pH_range > 0.0012:

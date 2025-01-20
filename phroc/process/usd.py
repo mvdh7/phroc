@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from .parameters import pH_DSC07, pH_tris_DD98
+from .parameters import pH_equations, pH_tris_DD98
 from .qc import find_window
 from .read_raw import enforce_comments, enforce_ts, get_order_analysis, read_agilent_pH
 from .write import write_excel, write_phroc
@@ -39,7 +39,7 @@ def get_samples_from_measurements(measurements):
     return samples
 
 
-def get_xpos(measurements, samples):
+def get_xpos(measurements: pd.DataFrame, samples: pd.DataFrame):
     measurements["xpos"] = measurements.order_analysis.astype(float)
     for s, sample in samples.iterrows():
         M = measurements.order_analysis == s
@@ -49,7 +49,13 @@ def get_xpos(measurements, samples):
 
 
 class UpdatingSummaryDataset:
-    def __init__(self, measurements, dye_intercept=0, dye_slope=0):
+    def __init__(
+        self,
+        measurements: pd.DataFrame | str,
+        dye_intercept: float = 0.0,
+        dye_slope: float = 0.0,
+        pH_equation: str = "NIOZ",
+    ):
         if isinstance(measurements, str):
             self.measurements = read_agilent_pH(
                 measurements,
@@ -61,6 +67,15 @@ class UpdatingSummaryDataset:
         self.get_samples()
         self.dye_intercept = dye_intercept
         self.dye_slope = dye_slope
+        self.pH_equation = pH_equation
+        self.pH_kwargs = {}
+        if self.pH_equation == "DSC07":
+            self.pH_kwargs.update(
+                {
+                    "dye_intercept": self.dye_intercept,
+                    "dye_slope": self.dye_slope,
+                }
+            )
 
     def get_samples(self):
         (
@@ -71,7 +86,7 @@ class UpdatingSummaryDataset:
         self.samples = get_samples_from_measurements(self.measurements)
         get_xpos(self.measurements, self.samples)
 
-    def set_measurement(self, order, **kwargs):
+    def set_measurement(self, order: int, **kwargs):
         assert order in self.measurements.index
         # Use this to update individual measurements
         for col, value in kwargs.items():
@@ -164,14 +179,13 @@ class UpdatingSummaryDataset:
             if col in ["salinity", "temperature"]:
                 Mg = M & sm.pH_good
                 # After updating salinity and/or temperature, we need to recalculate pH
-                sm.loc[M, "pH"] = pH_DSC07(
+                sm.loc[M, "pH"] = pH_equations[self.pH_equation](
                     sm[M].absorbance_578.values,
                     sm[M].absorbance_434.values,
                     sm[M].absorbance_730.values,
                     temperature=sm[M].temperature.values,
                     salinity=sm[M].salinity.values,
-                    dye_intercept=self.dye_intercept,
-                    dye_slope=self.dye_slope,
+                    **self.pH_kwargs,
                 )
                 self.samples.loc[order_analysis, "pH"] = sm.loc[Mg, "pH"].mean()
                 self.samples.loc[order_analysis, "pH_std"] = sm.loc[Mg, "pH"].std()

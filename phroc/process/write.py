@@ -10,7 +10,8 @@ from ..meta import __version__
 def make_settings(usd):
     return pd.DataFrame(
         {
-            "phroc_version": __version__,
+            "pHroc_version": [__version__],
+            "pH_equation": [usd.pH_equation],
             "dye_slope": [usd.dye_slope],
             "dye_intercept": [usd.dye_intercept],
         }

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from .parameters import pH_DSC07
+from .parameters import pH_equations
 from .qc import find_windows
 
 
@@ -44,6 +44,7 @@ def read_agilent_pH(
     dye_intercept: float = 0,
     dye_slope: float = 0,
     find_windows_auto: bool = False,
+    pH_equation: str = "NIOZ",
 ) -> pd.DataFrame:
     """Import raw pH data from the spectrophotometer.
 
@@ -60,6 +61,8 @@ def read_agilent_pH(
     find_windows_auto : bool, optional
         Whether to automatically find windows containing good measurements, by
         default False.
+    pH_equation : str, optional
+        Which pH equation to use, either `"NIOZ"` (default) or `"DSC07"`.
 
     Returns
     -------
@@ -105,6 +108,9 @@ def read_agilent_pH(
                 comments : str
                     Comments to be filled in by the analyst, empty to begin.
     """
+    assert pH_equation in pH_equations, (
+        '`pH_equation` must be one of `"NIOZ"` or `"DSC07"`.'
+    )
     with open(filename, "rb") as f:
         lines = f.read().decode("utf-16").splitlines()
     # Get positions of data tables in the data file
@@ -207,14 +213,21 @@ def read_agilent_pH(
     sns = measurements.sample_name.str.upper().str
     measurements["is_tris"] = sns.startswith("TRIS") | sns.startswith("NT")
     measurements["extra_mcp"] = sns.endswith("-+20")
-    measurements["pH"] = pH_DSC07(
+    pH_kwargs = {}
+    if pH_equation == "DSC07":
+        pH_kwargs.update(
+            {
+                "dye_intercept": dye_intercept,
+                "dye_slope": dye_slope,
+            }
+        )
+    measurements["pH"] = pH_equations[pH_equation](
         measurements.absorbance_578,
         measurements.absorbance_434,
         measurements.absorbance_730,
         temperature=measurements.temperature,
         salinity=measurements.salinity,
-        dye_intercept=dye_intercept,
-        dye_slope=dye_slope,
+        **pH_kwargs,
     )
     measurements["pH_good"] = True
     if find_windows_auto:

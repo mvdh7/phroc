@@ -121,3 +121,9 @@ def pH_tris_DD98(
         - 0.11149858 * T
     )
     return pH
+
+
+pH_equations = {
+    "NIOZ": pH_NIOZ,
+    "DSC07": pH_DSC07,
+}

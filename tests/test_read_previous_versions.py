@@ -14,3 +14,17 @@ def test_excel_v0_2():
         "tests/data/previous_versions/2024-04-27-CTD1__v0_2.xlsx"
     )
     assert isinstance(usd_excel_v0_2, UpdatingSummaryDataset)
+
+
+def test_phroc_v0_3():
+    usd_phroc_v0_3 = read_phroc(
+        "tests/data/previous_versions/2024-04-27-CTD1__v0_3.phroc"
+    )
+    assert isinstance(usd_phroc_v0_3, UpdatingSummaryDataset)
+
+
+def test_excel_v0_3():
+    usd_excel_v0_3 = read_excel(
+        "tests/data/previous_versions/2024-04-27-CTD1__v0_3.xlsx"
+    )
+    assert isinstance(usd_excel_v0_3, UpdatingSummaryDataset)

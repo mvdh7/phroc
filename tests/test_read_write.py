@@ -60,6 +60,16 @@ def test_write_read_excel():
     assert data.dye_slope == data_p.dye_slope
 
 
+def test_other_files():
+    for filename in [
+        "tests/data/240827-RWS-BATCH23-PH.TXT",
+        "tests/data/241010-DY172-JETTY.TXT",
+    ]:
+        data = phroc.UpdatingSummaryDataset("tests/data/240827-RWS-BATCH23-PH.TXT")
+        assert isinstance(data, phroc.UpdatingSummaryDataset)
+
+
 # test_read()
 # test_write_read_phroc()
 # test_write_read_excel()
+# test_other_files()

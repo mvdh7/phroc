@@ -10,7 +10,6 @@ description = "GUI for processing spectrophotometric pH data"
 readme = "README.md"
 classifiers =[
     "Development Status :: 4 - Beta",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -24,7 +23,6 @@ classifiers =[
     "Topic :: Scientific/Engineering :: Visualization",
 ]
 dependencies = [
-    "koolstof",
     "numpy",
     "pandas",
     "pyside6",
@@ -42,3 +40,9 @@ include = ["phroc*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "phroc.meta.__version__"}
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+lines-after-imports = 2
+no-sections = false

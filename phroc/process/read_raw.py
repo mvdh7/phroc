@@ -43,6 +43,7 @@ def read_agilent_pH(
     filename: str,
     dye_intercept: float = 0,
     dye_slope: float = 0,
+    filename_comments: str = None,
     find_windows_auto: bool = False,
     pH_equation: str = "NIOZ",
 ) -> pd.DataFrame:
@@ -58,6 +59,9 @@ def read_agilent_pH(
         Intercept of the dye correction (SOP 6b eq. 9), by default 0.
     dye_slope : float, optional
         Slope of the dye correction (SOP 6b eq. 9), by default 0.
+    filename_comments : str, optional
+        Filename for the comments file, if it's named differently than
+        described above for `filename`.
     find_windows_auto : bool, optional
         Whether to automatically find windows containing good measurements, by
         default False.
@@ -174,7 +178,9 @@ def read_agilent_pH(
         else:
             measurements[k] = v
     #  Import Comments file to get non-truncated sample_name
-    with open(filename.replace(".TXT", "-COMMENTS.TXT"), "rb") as f:
+    if filename_comments is None:
+        filename_comments = filename.replace(".TXT", "-COMMENTS.TXT")
+    with open(filename_comments, "rb") as f:
         lines = f.read().decode("utf-16").splitlines()
     # Get positions of data tables in Comments file
     is_table = False
@@ -193,7 +199,7 @@ def read_agilent_pH(
     te = table_end[1]
     pH_c = (
         pd.read_fwf(
-            filename.replace(".TXT", "-COMMENTS.TXT"),
+            filename_comments,
             encoding="utf-16",
             engine="python",
             skiprows=[*range(ts), ts + 1],

@@ -73,13 +73,13 @@ cell_orange = {
 
 @callback(
     Output("fig_samples", "figure"),
-    Input("store", "data"),
+    Input("store_measurements", "data"),
 )
-def plot_samples(store):
-    measurements = pd.DataFrame.from_records(store[0])
+def plot_samples(store_measurements):
+    print("plot_samples()")
+    measurements = pd.DataFrame.from_records(store_measurements)
     usd = UpdatingSummaryDataset(measurements)
     samples = usd.samples
-    print(samples)
     sc_pH_s = go.Scatter(
         x=samples.index,
         y=samples.pH,
@@ -133,17 +133,16 @@ def plot_samples(store):
 
 @callback(
     Output("current_file", "children"),
-    Output("store", "data"),
-    Output("samples", "data"),
+    Output("store_measurements", "data"),
+    Output("store_samples", "data"),
+    Output("store_settings", "data"),
     Output("current_file_status", "className"),
     Input("upload", "filename"),
     State("upload", "contents"),
 )
 def update_current_file(filenames, contents):
-    # TODO expand this function to import the current file, populate DataTable,
-    # draw figures
     print("update_current_file()")
-    failed = "none", no_update, no_update, "alert-warning"
+    failed = "none", no_update, no_update, no_update, "alert-warning"
     if contents is not None:
         if len(contents) == 1:
             content_type, content_string = contents[0].split(",")
@@ -192,14 +191,13 @@ def update_current_file(filenames, contents):
         )
         return (
             filename,
-            (
-                usd.measurements.to_dict("records"),
-                usd.samples.to_dict("records"),
+            usd.measurements.to_dict("records"),
+            usd.samples.to_dict("records"),
+            [
                 usd.dye_intercept,
                 usd.dye_slope,
                 usd.pH_equation,
-            ),
-            usd.samples.to_dict("records"),
+            ],
             "alert-success",
         )
     else:
@@ -207,30 +205,43 @@ def update_current_file(filenames, contents):
         return failed
 
 
-@callback(
-    Input("autodetect", "n_clicks"),
-    State("store", "data"),  # NOTE this is how to access the current dataset!
-)
-def print_store(n_clicks, store):
-    # NOTE use `pd.DataFrame.from_records(...)`
-    # to reverse `df.to_dict("records")`
-    # NOTE I will not be able to use the USD very easily to do the processing
-    # now, but it was probably an overcomplication anyway...(?)
-    # Unless it's super quick to compute an USD from the measurements table,
-    # then it might still be the way to go.
-    print(store)
+# @callback(
+#     Input("autodetect", "n_clicks"),
+#     State("store", "data"),  # NOTE this is how to access the current dataset!
+# )
+# def print_store(n_clicks, store):
+#     # NOTE use `pd.DataFrame.from_records(...)`
+#     # to reverse `df.to_dict("records")`
+#     # NOTE I will not be able to use the USD very easily to do the processing
+#     # now, but it was probably an overcomplication anyway...(?)
+#     # Unless it's super quick to compute an USD from the measurements table,
+#     # then it might still be the way to go.
+#     print(store)
 
 
 @callback(
-    Input("samples", "data"),
-    State("store", "data"),
-    State("samples", "active_cell"),
+    Output("table_samples", "data"),
+    Input("store_measurements", "data"),
 )
-def get_changes(samples_data, store_data, active_cell):
+def update_table_samples(store_measurements):
+    print("update_table_samples()")
+    measurements = pd.DataFrame.from_records(store_measurements)
+    usd = UpdatingSummaryDataset(measurements)
+    return usd.samples.to_dict("records")
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("table_samples", "data"),
+    State("store_measurements", "data"),
+    State("table_samples", "active_cell"),
+    prevent_initial_call=True,
+)
+def get_changes(samples_data, store_measurements, active_cell):
+    print("get_changes()")
     if samples_data is not None and active_cell is not None:
         samples_df = pd.DataFrame.from_records(samples_data)
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_data[0]))
-        print(active_cell)
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
         col = active_cell["column_id"]
         r = active_cell["row"]
         if samples_df.iloc[r][col] == usd.samples.iloc[r][col]:
@@ -239,15 +250,31 @@ def get_changes(samples_data, store_data, active_cell):
             # Enter after editing, then the active_cell is the cell below the
             # one you edited
             r -= 1
-        print(usd.samples.iloc[r][col], samples_df.iloc[r][col])
-        print(usd.samples.iloc[r].pH)
         usd.set_sample(r + 1, **{col: samples_df.iloc[r][col]})
-        print(usd.samples.iloc[r].pH)
-        print(usd.samples.iloc[r][col], samples_df.iloc[r][col])
+        return usd.measurements.to_dict("records")
+    else:
+        return no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Output("table_samples", "active_cell"),
+    Input("autodetect", "n_clicks"),
+    State("store_measurements", "data"),
+    prevent_initial_call=True,
+)
+def autodetect_windows(n_clicks, store_measurements):
+    print("autodetect_windows()")
+    if store_measurements is not None:
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd.find_windows(cutoff=0.001, minimum_values=3)
+        return usd.measurements.to_dict("records"), None
+    else:
+        return no_update, no_update
 
 
 # @callback(
-#     Output("samples", "style_table"),
+#     Output("table_samples", "style_table"),
 #     Input("export_phroc", "n_clicks"),
 # )
 # def tester(n_clicks):
@@ -349,7 +376,7 @@ samples_left = [
     dbc.Row(
         dbc.Col(
             DataTable(
-                id="samples",
+                id="table_samples",
                 columns=cols,
                 style_table={"height": "650px", "overflowY": "auto"},
                 style_cell={"height": "auto"},
@@ -441,8 +468,9 @@ app.layout = html.Div(
                 ),
             ],
         ),
-        dcc.Store(id="store"),
+        dcc.Store(id="store_measurements"),
         dcc.Store(id="store_samples"),
+        dcc.Store(id="store_settings"),
     ]
 )
 if __name__ == "__main__":

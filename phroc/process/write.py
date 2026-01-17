@@ -1,6 +1,6 @@
-import os
 import tempfile
 import zipfile
+from pathlib import Path
 
 import pandas as pd
 
@@ -19,21 +19,25 @@ def make_settings(usd):
 
 
 def write_phroc(filename, usd):
-    # filename needs to include the **absolute** path to the .phroc file to be saved!
-    # Using a relative path will mean it gets saved in the TemporaryDirectory instead
-    cwd = os.getcwd()
     with tempfile.TemporaryDirectory() as tdir:
-        os.chdir(tdir)
-        usd.measurements.to_parquet("measurements.parquet")
-        usd.samples.to_parquet("samples.parquet")
-        make_settings(usd).to_parquet("settings.parquet")
+        usd.measurements.to_parquet(Path(f"{tdir}/measurements.parquet"))
+        usd.samples.to_parquet(Path(f"{tdir}/samples.parquet"))
+        make_settings(usd).to_parquet(Path(f"{tdir}/settings.parquet"))
         if not filename.endswith(".phroc"):
             filename += ".phroc"
         with zipfile.ZipFile(filename, compression=zipfile.ZIP_LZMA, mode="w") as z:
-            z.write("measurements.parquet")
-            z.write("samples.parquet")
-            z.write("settings.parquet")
-    os.chdir(cwd)
+            z.write(
+                Path(f"{tdir}/measurements.parquet"),
+                arcname="measurements.parquet",
+            )
+            z.write(
+                Path(f"{tdir}/samples.parquet"),
+                arcname="samples.parquet",
+            )
+            z.write(
+                Path(f"{tdir}/settings.parquet"),
+                arcname="settings.parquet",
+            )
 
 
 def write_excel(filename, usd):

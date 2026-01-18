@@ -11,6 +11,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback, ctx, dcc, html, no_update
 from dash.dash_table import DataTable
+from dash_extensions import Keyboard
 from plotly.subplots import make_subplots
 
 from phroc import (
@@ -41,6 +42,11 @@ cols_samples = [
     {
         "id": "txt_is_tris",
         "name": "Tris?",
+        "editable": True,
+    },
+    {
+        "id": "txt_extra_mcp",
+        "name": "+20 mCP?",
         "editable": True,
     },
     {
@@ -115,6 +121,7 @@ def plot_samples(store_measurements, active_tab):
             y=samples.pH,
             name="pH",
             mode="markers",
+            marker_size=10,
         )
         # sc_pH_m = go.Scatter(
         #     x=measurements.xpos[measurements.pH_good],
@@ -127,12 +134,14 @@ def plot_samples(store_measurements, active_tab):
             y=samples.salinity,
             name="Salinity",
             mode="markers",
+            marker_size=10,
         )
         sc_t = go.Scatter(
             x=samples.index,
             y=samples.temperature,
             name="Temperature",
             mode="markers",
+            marker_size=10,
         )
         fig = make_subplots(
             rows=3,
@@ -297,10 +306,16 @@ def get_samples_table_user_changes(
         # Deal with columns that don't just display their raw value in the table
         if col == "txt_is_tris":
             if isinstance(samples_df.iloc[r][col], str):
-                is_tris = samples_df.iloc[r][col].upper().startswith("T")
+                is_tris = samples_df.iloc[r][col].upper().startswith("Y")
             else:
                 is_tris = False
             usd.set_sample(r + 1, is_tris=is_tris)
+        elif col == "txt_extra_mcp":
+            if isinstance(samples_df.iloc[r][col], str):
+                extra_mcp = samples_df.iloc[r][col].upper().startswith("Y")
+            else:
+                extra_mcp = False
+            usd.set_sample(r + 1, extra_mcp=extra_mcp)
         # Otherwise, just adjust the edited column directly
         else:
             usd.set_sample(r + 1, **{col: samples_df.iloc[r][col]})
@@ -466,7 +481,7 @@ def plot_measurements(store_measurements, which_sample, active_tab):
         fig = go.Figure(
             [sc_good, sc_bad],
             layout=go.Layout(
-                height=600,
+                height=500,
                 xaxis_dtick=1,
                 xaxis_range=[
                     measurements[M].order.min() - 0.5,
@@ -558,9 +573,16 @@ def test_for_change(current, new):
     State("dropdown_sample", "value"),
     Input("tabs", "active_tab"),
     State("dropdown_sample", "options"),
+    Input("store_split_count", "data"),
     prevent_initial_call=True,
 )
-def update_dropdown(store_measurements, which_sample, active_tab, dropdown_options):
+def update_dropdown(
+    store_measurements,
+    which_sample,
+    active_tab,
+    dropdown_options,
+    split_count,
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_dropdown()")
     if store_measurements is not None and active_tab == "tab_measurements":
         usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
@@ -569,9 +591,12 @@ def update_dropdown(store_measurements, which_sample, active_tab, dropdown_optio
         dropdown_options__new = []
         dropdown_options__changed = False
         for n, (v, lb) in enumerate(usd.samples.sample_name.items()):
-            dropdown_options__new.append({"value": v, "label": lb})
-            dropdown_options__changed |= dropdown_options[n]["value"] != v
-            dropdown_options__changed |= dropdown_options[n]["label"] != lb
+            try:
+                dropdown_options__new.append({"value": v, "label": lb})
+                dropdown_options__changed |= dropdown_options[n]["value"] != v
+                dropdown_options__changed |= dropdown_options[n]["label"] != lb
+            except IndexError:
+                dropdown_options__changed = True
         dropdown_options__changed |= len(dropdown_options) != len(dropdown_options__new)
         if dropdown_options__changed:
             dropdown_options__return = dropdown_options__new
@@ -595,6 +620,8 @@ def update_dropdown(store_measurements, which_sample, active_tab, dropdown_optio
     Output("input_temperature", "value"),
     Output("input_salinity", "value"),
     Output("input_comment", "value"),
+    Output("check_is_tris", "value"),
+    Output("check_extra_mcp", "value"),
     Input("store_measurements", "data"),
     Input("dropdown_sample", "value"),
     Input("tabs", "active_tab"),
@@ -606,6 +633,8 @@ def update_dropdown(store_measurements, which_sample, active_tab, dropdown_optio
     State("input_temperature", "value"),
     State("input_salinity", "value"),
     State("input_comment", "value"),
+    State("check_is_tris", "value"),
+    State("check_extra_mcp", "value"),
 )
 def update_sample_info(
     store_measurements,
@@ -619,6 +648,8 @@ def update_sample_info(
     input_temperature,
     input_salinity,
     input_comment,
+    check_is_tris,
+    check_extra_mcp,
 ):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_sample_info()")
     if store_measurements is not None and active_tab == "tab_measurements":
@@ -631,6 +662,22 @@ def update_sample_info(
         input_temperature__new = usd.samples.loc[which_sample].temperature
         input_salinity__new = usd.samples.loc[which_sample].salinity
         input_comment__new = usd.samples.loc[which_sample].comments
+        if len(check_is_tris) == 1:
+            is_tris = [" Tris?"]
+        else:
+            is_tris = []
+        if usd.samples.loc[which_sample].is_tris:
+            is_tris__new = [" Tris?"]
+        else:
+            is_tris__new = []
+        if len(check_extra_mcp) == 1:
+            extra_mcp = [" +20 mCP?"]
+        else:
+            extra_mcp = []
+        if usd.samples.loc[which_sample].extra_mcp:
+            extra_mcp__new = [" +20 mCP?"]
+        else:
+            extra_mcp__new = []
         new_sample_info = [
             test_for_change(b_sample_number, b_sample_number__new),
             test_for_change(b_total_samples, b_total_samples__new),
@@ -640,11 +687,13 @@ def update_sample_info(
             test_for_change(input_temperature, input_temperature__new),
             test_for_change(input_salinity, input_salinity__new),
             test_for_change(input_comment, input_comment__new),
+            test_for_change(is_tris, is_tris__new),
+            test_for_change(extra_mcp, extra_mcp__new),
         ]
         return new_sample_info
     else:
         print(" - no update")
-        return [no_update] * 8
+        return [no_update] * 10
 
 
 @callback(
@@ -717,10 +766,58 @@ def update_salinity(salinity, which_sample, store_measurements, active_tab):
 
 
 @callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("check_is_tris", "value"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def update_is_tris(check_is_tris, which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_is_tris()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        is_tris = len(check_is_tris) == 1
+        if is_tris != usd.samples.is_tris.loc[which_sample]:
+            usd.set_sample(which_sample, is_tris=is_tris)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("check_extra_mcp", "value"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def update_extra_mcp(check_extra_mcp, which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_extra_mcp()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        extra_mcp = len(check_extra_mcp) == 1
+        if extra_mcp != usd.samples.extra_mcp.loc[which_sample]:
+            usd.set_sample(which_sample, extra_mcp=extra_mcp)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
     Output("table_measurements", "data"),
     Output("table_measurements", "selected_rows"),
     Input("dropdown_sample", "value"),
-    State("store_measurements", "data"),
+    Input("store_measurements", "data"),
     Input("tabs", "active_tab"),
 )
 def update_table_measurements(which_sample, store_measurements, active_tab):
@@ -790,12 +887,21 @@ def move_measurement(direction, which_sample, store_measurements):
 @callback(
     Output("store_measurements", "data", allow_duplicate=True),
     Output("dropdown_sample", "value", allow_duplicate=True),
+    Output("store_split_count", "data", allow_duplicate=True),
     Input("btn_first_to_prev", "n_clicks"),
     State("dropdown_sample", "value"),
     State("store_measurements", "data"),
+    State("store_split_count", "data"),
+    State("table_measurements", "data"),
     prevent_initial_call=True,
 )
-def move_first_to_prev(n_clicks, which_sample, store_measurements):
+def move_first_to_prev(
+    n_clicks,
+    which_sample,
+    store_measurements,
+    split_count,
+    data_table_measurements,
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_first_to_prev()")
     if store_measurements is not None and which_sample > 1:
         usd = move_measurement(-1, which_sample, store_measurements)
@@ -805,31 +911,125 @@ def move_first_to_prev(n_clicks, which_sample, store_measurements):
             dd = which_sample - 1
         else:
             dd = no_update
-        return usd.measurements.to_dict("records"), dd
+        if len(data_table_measurements) == 1:
+            split_count += 1
+        else:
+            split_count = no_update
+        return usd.measurements.to_dict("records"), dd, split_count
     else:
         print(" - no_update")
-        return no_update, no_update
+        return no_update, no_update, no_update
 
 
 @callback(
     Output("store_measurements", "data", allow_duplicate=True),
+    Output("store_split_count", "data", allow_duplicate=True),
     Input("btn_last_to_next", "n_clicks"),
     State("dropdown_sample", "value"),
     State("store_measurements", "data"),
+    State("store_split_count", "data"),
+    State("table_measurements", "data"),
     prevent_initial_call=True,
 )
-def move_last_to_next(n_clicks, which_sample, store_measurements):
+def move_last_to_next(
+    n_clicks,
+    which_sample,
+    store_measurements,
+    split_count,
+    data_table_measurements,
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_last_to_next()")
     if (
         store_measurements is not None
         and which_sample < store_measurements[-1]["order_analysis"]
     ):
         usd = move_measurement(1, which_sample, store_measurements)
-        return usd.measurements.to_dict("records")
+        if len(data_table_measurements) == 1:
+            split_count += 1
+        else:
+            split_count = no_update
+        return usd.measurements.to_dict("records"), split_count
     else:
         print(" - no_update")
-        return no_update
+        return no_update, no_update
 
+
+@callback(
+    Output("slider_split", "min"),
+    Output("slider_split", "max"),
+    Output("slider_split", "value"),
+    Input("table_measurements", "data"),
+    prevent_initial_call=True,
+)
+def update_slider_range(data_table_measurements):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_slider_range()")
+    if data_table_measurements is not None:
+        df = pd.DataFrame.from_records(data_table_measurements)
+        return (
+            df.order.iloc[0],
+            df.order.iloc[-1],
+            df.order.iloc[0],
+        )
+    else:
+        print(" - no update")
+        return no_update, no_update, no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Output("store_split_count", "data", allow_duplicate=True),
+    Input("btn_split", "n_clicks"),
+    State("slider_split", "value"),
+    State("slider_split", "min"),
+    State("slider_split", "max"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    State("store_split_count", "data"),
+    prevent_initial_call=True,
+)
+def split_sample(
+    n_clicks,
+    split_at,
+    split_min,
+    split_max,
+    which_sample,
+    store_measurements,
+    split_count,
+):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > split_sample()")
+    if store_measurements is not None and split_at > split_min and split_at < split_max:
+        s = which_sample
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        M = usd.measurements.order_analysis == s
+        Mn = M & (usd.measurements.order > split_at)  # the new sample
+        # Update by renaming - note that if the following sample already ends with
+        # "__SPLIT" then the new split will just add data to that next sample,
+        # instead of making a new one - but I think that's not really a problem
+        sample_name_new = usd.samples.sample_name.loc[s] + "__SPLIT"
+        usd.set_measurements(Mn, sample_name=sample_name_new)
+        which_sample += 1
+        return (
+            usd.measurements.to_dict("records"),
+            which_sample,
+            split_count + 1,
+        )
+    else:
+        print(" - no update")
+        return no_update, no_update, no_update
+
+
+@callback(
+    Input("keyboard", "keydown"),
+)
+def print_keypress(keydown):
+    if keydown is not None:
+        key = keydown.get("key", "")
+        print(key)
+
+
+# TODO use the above in get_samples_table_user_changes() to deal with the click-off
+# problem better!
 
 # %%
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -964,7 +1164,11 @@ samples_left = [
                 ]
                 + [
                     {"if": {"column_id": col_id}, "text-align": "center"}
-                    for col_id in ["txt_n_measurements", "txt_is_tris"]
+                    for col_id in [
+                        "txt_n_measurements",
+                        "txt_is_tris",
+                        "txt_extra_mcp",
+                    ]
                 ],
                 style_data_conditional=[
                     {
@@ -1110,6 +1314,21 @@ info_measurements = dbc.Alert(
             className="mt-2",
         ),
         dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Checklist([" Tris?"], id="check_is_tris", value=[]),
+                    style={"textAlign": "center"},
+                    width=6,
+                ),
+                dbc.Col(
+                    dcc.Checklist([" +20 mCP?"], id="check_extra_mcp", value=[]),
+                    style={"textAlign": "center"},
+                ),
+            ],
+            align="center",
+            className="mt-2",
+        ),
+        dbc.Row(
             dbc.Col(
                 dcc.Input(
                     id="input_comment",
@@ -1171,6 +1390,24 @@ tab_measurements = dbc.Container(
                 ),
             ],
             align="center",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Slider(0, 1, 1, id="slider_split", value=1),
+                    width={"size": 3, "offset": 4},
+                ),
+                dbc.Col(
+                    dbc.Button(
+                        "Split sample",
+                        color="danger",
+                        outline=True,
+                        id="btn_split",
+                    ),
+                    width=1,
+                ),
+            ],
+            className="mb-5",
         ),
         dbc.Row(
             [
@@ -1248,6 +1485,8 @@ app.layout = html.Div(
         ),
         dcc.Store(id="store_measurements"),
         dcc.Store(id="store_settings"),
+        dcc.Store(id="store_split_count", data=0),
+        Keyboard(id="keyboard"),
     ]
 )
 if __name__ == "__main__":

@@ -43,7 +43,10 @@ def get_sample_cols_for_table(samples):
     samples["txt_n_measurements"] = (
         samples.pH_good.astype(str) + " / " + samples.pH_count.astype(str)
     )
-    samples["txt_is_tris"] = ["T" if is_tris else "" for is_tris in samples.is_tris]
+    samples["txt_is_tris"] = ["Y" if is_tris else "" for is_tris in samples.is_tris]
+    samples["txt_extra_mcp"] = [
+        "Y" if extra_mcp else "" for extra_mcp in samples.extra_mcp
+    ]
     return samples
 
 

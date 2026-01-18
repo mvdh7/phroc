@@ -77,6 +77,19 @@ cols_samples = [
         "editable": True,
     },
 ]
+cols_measurements = [
+    {
+        "id": "order",
+        "name": "Order",
+        "type": "numeric",
+    },
+    {
+        "id": "pH",
+        "name": "pH",
+        "type": "numeric",
+        "format": {"specifier": "0.4f"},
+    },
+]
 cell_red = {
     "backgroundColor": "#DC3545",
     "color": "white",
@@ -436,21 +449,24 @@ def plot_measurements(store_measurements, which_sample, active_tab):
         M = measurements.order_analysis == which_sample
         Mg = M & measurements.pH_good
         Mb = M & ~measurements.pH_good
-        fx = 1 + np.arange(M.sum())
-        L = measurements.pH_good[M].values
         sc_good = go.Scatter(
-            x=fx[L],
+            x=measurements[Mg].order,
             y=measurements[Mg].pH,
             mode="markers",
             name="Used",
+            marker_size=20,
         )
         sc_bad = go.Scatter(
-            x=fx[~L],
+            x=measurements[Mb].order,
             y=measurements[Mb].pH,
             mode="markers",
             name="Ignored",
+            marker_size=20,
         )
-        fig = go.Figure([sc_good, sc_bad])
+        fig = go.Figure(
+            [sc_good, sc_bad],
+            layout=go.Layout(xaxis_dtick=1),
+        )
         return fig
     else:
         print(" - no update")
@@ -684,6 +700,55 @@ def update_salinity(salinity, which_sample, store_measurements, active_tab):
         usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
         if float(usd.samples.salinity.loc[which_sample]) != float(salinity):
             usd.set_sample(which_sample, salinity=salinity)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("table_measurements", "data"),
+    Output("table_measurements", "selected_rows"),
+    Input("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+)
+def update_table_measurements(which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_table_measurements()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        M = usd.measurements.order_analysis == which_sample
+        return usd.measurements[M].to_dict("records"), np.nonzero(
+            usd.measurements[M].pH_good
+        )[0]
+    else:
+        print(" - no update")
+        return no_update, no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("table_measurements", "selected_rows"),
+    State("store_measurements", "data"),
+    State("tabs", "active_tab"),
+    State("dropdown_sample", "value"),
+    prevent_initial_call=True,
+)
+def change_pH_good(selected_rows, store_measurements, active_tab, which_sample):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > change_pH_good()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        M = usd.measurements.order_analysis == which_sample
+        selected_rows_prev = np.nonzero(usd.measurements[M].pH_good)[0]
+        if len(selected_rows) != len(selected_rows_prev):
+            print(usd.measurements.loc[M].pH_good)
+            usd.measurements.loc[M, "pH_good"] = False
+            usd.measurements.loc[
+                usd.measurements.index[M][selected_rows], "pH_good"
+            ] = True
             return usd.measurements.to_dict("records")
         else:
             print(" - no update")
@@ -987,14 +1052,27 @@ info_measurements = dbc.Alert(
 )
 table_measurements = DataTable(
     id="table_measurements",
+    row_selectable="multi",
+    columns=cols_measurements,
+    style_cell_conditional=[
+        {"if": {"column_id": "order"}, "text-align": "center"},
+        {"if": {"column_id": "pH"}, "text-align": "left"},
+    ],
 )
 tab_measurements = dbc.Container(
     [
         dbc.Row(
-            dbc.Col(
-                dcc.Graph(id="fig_measurements"),
-                width={"size": 6, "offset": 3},
-            )
+            [
+                dbc.Col(
+                    dcc.Graph(id="fig_measurements"),
+                    width={"size": 6, "offset": 2},
+                ),
+                dbc.Col(
+                    table_measurements,
+                    width=2,
+                ),
+            ],
+            align="center",
         ),
         dbc.Row(
             [
@@ -1040,12 +1118,6 @@ tab_measurements = dbc.Container(
                     width=1,
                 ),
             ]
-        ),
-        dbc.Row(
-            dbc.Col(
-                table_measurements,
-                width={"size": 6, "offset": 3},
-            ),
         ),
     ],
     fluid=True,

@@ -152,7 +152,7 @@ def read_agilent_pH(
             widths=[11, 17, 15, 13, 13, 13, 14],
         )
         .rename(columns=pH_renamer)
-        .set_index("order")
+        .set_index("order", drop=False)
     )
     measurements["sample_name"] = measurements.sample_name.where(
         measurements.sample_name.notnull(), ""

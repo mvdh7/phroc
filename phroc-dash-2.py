@@ -465,7 +465,14 @@ def plot_measurements(store_measurements, which_sample, active_tab):
         )
         fig = go.Figure(
             [sc_good, sc_bad],
-            layout=go.Layout(xaxis_dtick=1),
+            layout=go.Layout(
+                height=600,
+                xaxis_dtick=1,
+                xaxis_range=[
+                    measurements[M].order.min() - 0.5,
+                    measurements[M].order.max() + 0.5,
+                ],
+            ),
         )
         return fig
     else:
@@ -755,6 +762,72 @@ def change_pH_good(selected_rows, store_measurements, active_tab, which_sample):
             return no_update
     else:
         print(" - no update")
+        return no_update
+
+
+def move_measurement(direction, which_sample, store_measurements):
+    print(f"move_measurement({direction})")
+    usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+    # Direction is -1 to move measurement backwards or +1 for forwards
+    assert direction in [-1, 1]
+    s = which_sample
+    s_new = s + direction
+    # Only do anything if we're not already on the first (-1) or last (+1) sample
+    if direction == -1:
+        neither_first_nor_last = s_new > 0
+        m_ix = 0  # the iloc in the subset of the measurements table to move (first)
+    elif direction == 1:
+        neither_first_nor_last = s_new < usd.samples.shape[0]
+        m_ix = -1  # the iloc in the subset of the measurements table to move (last)
+    if neither_first_nor_last:
+        M = usd.measurements.order_analysis == s
+        m = usd.measurements[M].index[m_ix]  # the measurement to move
+        # Move the sample by renaming
+        usd.set_measurement(m, sample_name=usd.samples.sample_name.loc[s_new])
+    return usd
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("btn_first_to_prev", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    prevent_initial_call=True,
+)
+def move_first_to_prev(n_clicks, which_sample, store_measurements):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_first_to_prev()")
+    if store_measurements is not None and which_sample > 1:
+        usd = move_measurement(-1, which_sample, store_measurements)
+        # If we completely remove the sample then we want to move to the previous
+        # sample (i.e., the one that we have moved the points to)
+        if store_measurements[-1]["order_analysis"] > len(usd.samples.index):
+            dd = which_sample - 1
+        else:
+            dd = no_update
+        return usd.measurements.to_dict("records"), dd
+    else:
+        print(" - no_update")
+        return no_update, no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("btn_last_to_next", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    prevent_initial_call=True,
+)
+def move_last_to_next(n_clicks, which_sample, store_measurements):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_last_to_next()")
+    if (
+        store_measurements is not None
+        and which_sample < store_measurements[-1]["order_analysis"]
+    ):
+        usd = move_measurement(1, which_sample, store_measurements)
+        return usd.measurements.to_dict("records")
+    else:
+        print(" - no_update")
         return no_update
 
 
@@ -1059,6 +1132,31 @@ table_measurements = DataTable(
         {"if": {"column_id": "pH"}, "text-align": "left"},
     ],
 )
+panel_measurements = [
+    dbc.Row(
+        dbc.Col(
+            dbc.Button(
+                "Move first to previous",
+                color="success",
+                outline=True,
+                id="btn_first_to_prev",
+            )
+        ),
+        style={"textAlign": "center"},
+    ),
+    dbc.Row(dbc.Col(table_measurements), className="p-3"),
+    dbc.Row(
+        dbc.Col(
+            dbc.Button(
+                "Move last to next",
+                color="success",
+                outline=True,
+                id="btn_last_to_next",
+            )
+        ),
+        style={"textAlign": "center"},
+    ),
+]
 tab_measurements = dbc.Container(
     [
         dbc.Row(
@@ -1068,7 +1166,7 @@ tab_measurements = dbc.Container(
                     width={"size": 6, "offset": 2},
                 ),
                 dbc.Col(
-                    table_measurements,
+                    panel_measurements,
                     width=2,
                 ),
             ],

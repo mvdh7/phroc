@@ -6,9 +6,10 @@ import tempfile
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, State, callback, dcc, html, no_update
+from dash import Dash, Input, Output, State, callback, ctx, dcc, html, no_update
 from dash.dash_table import DataTable
 from plotly.subplots import make_subplots
 
@@ -31,10 +32,15 @@ df = UpdatingSummaryDataset(
         pH_equation="NIOZ",
     )
 )
-cols = [
+cols_samples = [
     {
         "id": "sample_name",
         "name": "Name",
+        "editable": True,
+    },
+    {
+        "id": "txt_is_tris",
+        "name": "Tris?",
         "editable": True,
     },
     {
@@ -83,75 +89,85 @@ cell_orange = {
 @callback(
     Output("fig_samples", "figure"),
     Input("store_measurements", "data"),
+    Input("tabs", "active_tab"),
 )
-def plot_samples(store_measurements):
-    print("plot_samples()")
-    measurements = pd.DataFrame.from_records(store_measurements)
-    usd = UpdatingSummaryDataset(measurements)
-    samples = usd.samples
-    sc_pH_s = go.Scatter(
-        x=samples.index,
-        y=samples.pH,
-        name="pH",
-        mode="markers",
-    )
-    # sc_pH_m = go.Scatter(
-    #     x=measurements.xpos[measurements.pH_good],
-    #     y=measurements.pH[measurements.pH_good],
-    #     name="pH",
-    #     mode="lines",
-    # )
-    sc_s = go.Scatter(
-        x=samples.index,
-        y=samples.salinity,
-        name="Salinity",
-        mode="markers",
-    )
-    sc_t = go.Scatter(
-        x=samples.index,
-        y=samples.temperature,
-        name="Temperature",
-        mode="markers",
-    )
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.5, 0.25, 0.25],
-    )
-    # fig.add_trace(sc_pH_m, row=1, col=1)
-    fig.add_trace(sc_pH_s, row=1, col=1)
-    fig.add_trace(sc_s, row=2, col=1)
-    fig.add_trace(sc_t, row=3, col=1)
-    fig.update_yaxes(title="pH", row=1, col=1)
-    fig.update_yaxes(title="Salinity", row=2, col=1)
-    fig.update_yaxes(title="Temperature / °C", row=3, col=1)
-    fig.update_xaxes(
-        tickmode="array",
-        tickvals=samples.index,
-        ticktext=samples.sample_name,
-        tickangle=90,
-        range=[samples.index[0] - 1, samples.index[-1] + 1],
-    )
-    fig.update_layout(
-        showlegend=False,
-        height=900,
-    )
-    return fig
+def plot_samples(store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > plot_samples()")
+    if store_measurements is not None and active_tab == "tab_samples":
+        measurements = pd.DataFrame.from_records(store_measurements)
+        usd = UpdatingSummaryDataset(measurements)
+        samples = usd.samples
+        sc_pH_s = go.Scatter(
+            x=samples.index,
+            y=samples.pH,
+            name="pH",
+            mode="markers",
+        )
+        # sc_pH_m = go.Scatter(
+        #     x=measurements.xpos[measurements.pH_good],
+        #     y=measurements.pH[measurements.pH_good],
+        #     name="pH",
+        #     mode="lines",
+        # )
+        sc_s = go.Scatter(
+            x=samples.index,
+            y=samples.salinity,
+            name="Salinity",
+            mode="markers",
+        )
+        sc_t = go.Scatter(
+            x=samples.index,
+            y=samples.temperature,
+            name="Temperature",
+            mode="markers",
+        )
+        fig = make_subplots(
+            rows=3,
+            cols=1,
+            shared_xaxes=True,
+            row_heights=[0.5, 0.25, 0.25],
+        )
+        # fig.add_trace(sc_pH_m, row=1, col=1)
+        fig.add_trace(sc_pH_s, row=1, col=1)
+        fig.add_trace(sc_s, row=2, col=1)
+        fig.add_trace(sc_t, row=3, col=1)
+        fig.update_yaxes(title="pH", row=1, col=1)
+        fig.update_yaxes(title="Salinity", row=2, col=1)
+        fig.update_yaxes(title="Temperature / °C", row=3, col=1)
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=samples.index,
+            ticktext=samples.sample_name,
+            tickangle=90,
+            range=[samples.index[0] - 1, samples.index[-1] + 1],
+        )
+        fig.update_layout(
+            showlegend=False,
+            height=900,
+        )
+        return fig
+    else:
+        print(" - no update")
+        return no_update
 
 
 @callback(
-    Output("current_file", "children"),
+    Output("span_current_file", "children"),
     Output("store_measurements", "data"),
     Output("store_settings", "data"),
     Output("current_file_status", "className"),
-    Output("current_file_origin", "children"),
+    Output("span_current_file_origin", "children"),
+    Output("dropdown_sample", "options"),
+    Output("dropdown_sample", "value"),
     Input("upload", "filename"),
     State("upload", "contents"),
 )
 def update_current_file(filenames, contents):
-    print("update_current_file()")
-    failed = "none", no_update, no_update, "alert-warning", ""
+    try:
+        print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_current_file()")
+    except IndexError:
+        print(f"{ctx.triggered_id} > update_current_file()")
+    failed = "none", no_update, no_update, "alert-warning", "", no_update, no_update
     if contents is not None:
         if len(contents) == 1:
             content_type, content_string = contents[0].split(",")
@@ -163,6 +179,7 @@ def update_current_file(filenames, contents):
                 usd = read_phroc(io.BytesIO(decoded))
             else:
                 # Fail because 1 file uploaded neither .xlsx nor .phroc
+                print(" - no update")
                 return failed
         elif len(contents) == 2:
             files = {}
@@ -182,9 +199,11 @@ def update_current_file(filenames, contents):
                             files["standard"] = tmp_file.name
                 else:
                     # Fail because at least 1 of 2 files uploaded not .txt
+                    print(" - no update")
                     return failed
             if "comments" not in files or "standard" not in files:
                 # Fail because both files were (not) comments files
+                print(" - no update")
                 return failed
             measurements = read_agilent_pH(
                 files["standard"],
@@ -196,11 +215,8 @@ def update_current_file(filenames, contents):
             usd = UpdatingSummaryDataset(measurements)
         else:
             # Fail because more than 2 files were uploaded
+            print(" - no update")
             return failed
-        # NOTE for testing only below
-        usd.samples.loc[1, "comments"] = (
-            "Here is a very long comment just for testing purposes"
-        )
         return (
             filename,
             usd.measurements.to_dict("records"),
@@ -211,35 +227,29 @@ def update_current_file(filenames, contents):
             ],
             "alert-success",
             "",
+            [{"value": i, "label": v} for i, v in usd.samples.sample_name.items()],
+            1,
         )
     else:
         # Fail because no files uploaded (happens at program startup)
+        print(" - no update")
         return failed
-
-
-# @callback(
-#     Input("autodetect", "n_clicks"),
-#     State("store", "data"),  # NOTE this is how to access the current dataset!
-# )
-# def print_store(n_clicks, store):
-#     # NOTE use `pd.DataFrame.from_records(...)`
-#     # to reverse `df.to_dict("records")`
-#     # NOTE I will not be able to use the USD very easily to do the processing
-#     # now, but it was probably an overcomplication anyway...(?)
-#     # Unless it's super quick to compute an USD from the measurements table,
-#     # then it might still be the way to go.
-#     print(store)
 
 
 @callback(
     Output("table_samples", "data"),
     Input("store_measurements", "data"),
+    Input("tabs", "active_tab"),
 )
-def update_table_samples(store_measurements):
-    print("update_table_samples()")
-    measurements = pd.DataFrame.from_records(store_measurements)
-    usd = UpdatingSummaryDataset(measurements)
-    return usd.samples.to_dict("records")
+def update_table_samples(store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_table_samples()")
+    if store_measurements is not None and active_tab == "tab_samples":
+        measurements = pd.DataFrame.from_records(store_measurements)
+        usd = UpdatingSummaryDataset(measurements)
+        return usd.samples.to_dict("records")
+    else:
+        print(" - no update")
+        return no_update
 
 
 @callback(
@@ -247,11 +257,20 @@ def update_table_samples(store_measurements):
     Input("table_samples", "data"),
     State("store_measurements", "data"),
     State("table_samples", "active_cell"),
+    State("tabs", "active_tab"),
     prevent_initial_call=True,
 )
-def get_changes(samples_data, store_measurements, active_cell):
-    print("get_changes()")
-    if samples_data is not None and active_cell is not None:
+def get_samples_table_user_changes(
+    samples_data, store_measurements, active_cell, active_tab
+):
+    print(
+        f"{list(ctx.triggered_prop_ids.keys())[0]} > get_samples_table_user_changes()"
+    )
+    if (
+        samples_data is not None
+        and active_cell is not None
+        and active_tab == "tab_samples"
+    ):
         samples_df = pd.DataFrame.from_records(samples_data)
         usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
         col = active_cell["column_id"]
@@ -262,35 +281,46 @@ def get_changes(samples_data, store_measurements, active_cell):
             # Enter after editing, then the active_cell is the cell below the
             # one you edited
             r -= 1
-        usd.set_sample(r + 1, **{col: samples_df.iloc[r][col]})
+        # Deal with columns that don't just display their raw value in the table
+        if col == "txt_is_tris":
+            if isinstance(samples_df.iloc[r][col], str):
+                is_tris = samples_df.iloc[r][col].upper().startswith("T")
+            else:
+                is_tris = False
+            usd.set_sample(r + 1, is_tris=is_tris)
+        # Otherwise, just adjust the edited column directly
+        else:
+            usd.set_sample(r + 1, **{col: samples_df.iloc[r][col]})
         return usd.measurements.to_dict("records")
     else:
+        print(" - no update")
         return no_update
 
 
 @callback(
     Output("store_measurements", "data", allow_duplicate=True),
     Output("table_samples", "active_cell"),
-    Input("autodetect", "n_clicks"),
+    Input("btn_autodetect", "n_clicks"),
     State("store_measurements", "data"),
     prevent_initial_call=True,
 )
 def autodetect_windows(n_clicks, store_measurements):
-    print("autodetect_windows()")
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > autodetect_windows()")
     if store_measurements is not None:
         usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
         usd.find_windows(cutoff=0.001, minimum_values=3)
         return usd.measurements.to_dict("records"), None
     else:
+        print(" - no update")
         return no_update, no_update
 
 
 @callback(
     Input("store_measurements", "data"),
-    State("current_file", "children"),
+    State("span_current_file", "children"),
 )
 def update_backup(store_measurements, current_file):
-    print("update_backup()")
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_backup()")
     if store_measurements is not None:
         phroc_path = f"{Path.home()}/.phroc"
         Path(phroc_path).mkdir(exist_ok=True)
@@ -300,19 +330,23 @@ def update_backup(store_measurements, current_file):
         )
         with open(Path(f"{phroc_path}/last_filename.txt"), "w") as f:
             f.write(current_file)
+    else:
+        print(" - no update")
 
 
 @callback(
-    Output("current_file", "children", allow_duplicate=True),
+    Output("span_current_file", "children", allow_duplicate=True),
     Output("store_measurements", "data", allow_duplicate=True),
     Output("store_settings", "data", allow_duplicate=True),
     Output("current_file_status", "className", allow_duplicate=True),
-    Output("current_file_origin", "children", allow_duplicate=True),
-    Input("restore", "n_clicks"),
+    Output("span_current_file_origin", "children", allow_duplicate=True),
+    Output("dropdown_sample", "options", allow_duplicate=True),
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("btn_restore", "n_clicks"),
     prevent_initial_call=True,
 )
 def restore_session(n_clicks):
-    print("restore_session()")
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > restore_session()")
     try:
         usd = read_phroc(Path(f"{Path.home()}/.phroc/last_session.phroc"))
         with open(Path(f"{Path.home()}/.phroc/last_filename.txt"), "r") as f:
@@ -327,19 +361,23 @@ def restore_session(n_clicks):
             ],
             "alert-success",
             " (from backup)",
+            [{"value": i, "label": v} for i, v in usd.samples.sample_name.items()],
+            1,
         )
-    except FileNotFoundError:
-        return "none", no_update, no_update, "alert-warning", ""
+    except FileNotFoundError as e:
+        print(" - no update")
+        print(e)
+        return "none", no_update, no_update, "alert-warning", "", no_update, no_update
 
 
 @callback(
     Output("download_phroc", "data"),
-    Input("export_phroc", "n_clicks"),
-    State("current_file", "children"),
+    Input("btn_export_phroc", "n_clicks"),
+    State("span_current_file", "children"),
     prevent_initial_call=True,
 )
 def download_phroc(n_clicks, current_file):
-    print("download_phroc()")
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > download_phroc()")
     if current_file != "none":
         if current_file.lower().endswith(".txt"):
             filename = current_file[:-4] + ".phroc"
@@ -352,18 +390,19 @@ def download_phroc(n_clicks, current_file):
             filename=filename,
         )
     else:
+        print(" - no update")
         return no_update
 
 
 @callback(
     Output("download_excel", "data"),
-    Input("export_excel", "n_clicks"),
-    State("current_file", "children"),
+    Input("btn_export_excel", "n_clicks"),
+    State("span_current_file", "children"),
     State("store_measurements", "data"),
     prevent_initial_call=True,
 )
 def download_excel(n_clicks, current_file, store_measurements):
-    print("download_excel()")
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > download_excel()")
     if current_file != "none":
         if current_file.lower().endswith(".txt"):
             filename = current_file[:-4] + ".xlsx"
@@ -377,18 +416,281 @@ def download_excel(n_clicks, current_file, store_measurements):
             write_excel(str(tpath), usd)
             return dcc.send_file(tpath)
     else:
+        print(" - no update")
         return no_update
 
 
-# @callback(
-#     Output("table_samples", "style_table"),
-#     Input("export_phroc", "n_clicks"),
-# )
-# def tester(n_clicks):
-#     if n_clicks is None:
-#         n_clicks = 1
-#     print("tester()")
-#     return {"height": f"{int(n_clicks * 100)}px", "overflowY": "auto"}
+@callback(
+    Output("fig_measurements", "figure"),
+    Input("store_measurements", "data"),
+    Input("dropdown_sample", "value"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def plot_measurements(store_measurements, which_sample, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > plot_measurements()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        # sample = usd.samples.loc[which_sample]
+        measurements = usd.measurements
+        M = measurements.order_analysis == which_sample
+        Mg = M & measurements.pH_good
+        Mb = M & ~measurements.pH_good
+        fx = 1 + np.arange(M.sum())
+        L = measurements.pH_good[M].values
+        sc_good = go.Scatter(
+            x=fx[L],
+            y=measurements[Mg].pH,
+            mode="markers",
+            name="Used",
+        )
+        sc_bad = go.Scatter(
+            x=fx[~L],
+            y=measurements[Mb].pH,
+            mode="markers",
+            name="Ignored",
+        )
+        fig = go.Figure([sc_good, sc_bad])
+        return fig
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("move_first", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("dropdown_sample", "options"),
+    prevent_initial_call=True,
+)
+def move_first(n_clicks, which_sample, options):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_first()")
+    if options is not None:
+        return 1
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("move_previous", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("dropdown_sample", "options"),
+    prevent_initial_call=True,
+)
+def move_previous(n_clicks, which_sample, options):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_previous()")
+    if options is not None and which_sample > 1:
+        return which_sample - 1
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("move_next", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("dropdown_sample", "options"),
+    prevent_initial_call=True,
+)
+def move_next(n_clicks, which_sample, options):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_next()")
+    if options is not None and which_sample < len(options):
+        return which_sample + 1
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    Input("move_last", "n_clicks"),
+    State("dropdown_sample", "value"),
+    State("dropdown_sample", "options"),
+    prevent_initial_call=True,
+)
+def move_last(n_clicks, which_sample, options):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > move_last()")
+    if options is not None:
+        return len(options)
+    else:
+        print(" - no update")
+        return no_update
+
+
+def test_for_change(current, new):
+    if current == new:
+        return no_update
+    else:
+        return new
+
+
+@callback(
+    Output("dropdown_sample", "options", allow_duplicate=True),
+    Output("dropdown_sample", "value", allow_duplicate=True),
+    State("store_measurements", "data"),
+    State("dropdown_sample", "value"),
+    Input("tabs", "active_tab"),
+    State("dropdown_sample", "options"),
+    prevent_initial_call=True,
+)
+def update_dropdown(store_measurements, which_sample, active_tab, dropdown_options):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_dropdown()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        which_sample__new = min(which_sample, len(usd.samples.sample_name))
+        # ^ in case samples were merged and which_sample is now higher than possible
+        dropdown_options__new = []
+        dropdown_options__changed = False
+        for n, (v, lb) in enumerate(usd.samples.sample_name.items()):
+            dropdown_options__new.append({"value": v, "label": lb})
+            dropdown_options__changed |= dropdown_options[n]["value"] != v
+            dropdown_options__changed |= dropdown_options[n]["label"] != lb
+        dropdown_options__changed |= len(dropdown_options) != len(dropdown_options__new)
+        if dropdown_options__changed:
+            dropdown_options__return = dropdown_options__new
+        else:
+            dropdown_options__return = no_update
+        return (
+            dropdown_options__return,
+            test_for_change(which_sample, which_sample__new),
+        )
+    else:
+        print(" - no update")
+        return no_update, no_update
+
+
+@callback(
+    Output("b_sample_number", "children"),
+    Output("b_total_samples", "children"),
+    Output("col_pH", "children"),
+    Output("col_pH_range", "children"),
+    Output("value_pH_std", "children"),
+    Output("input_temperature", "value"),
+    Output("input_salinity", "value"),
+    Output("input_comment", "value"),
+    Input("store_measurements", "data"),
+    Input("dropdown_sample", "value"),
+    Input("tabs", "active_tab"),
+    State("b_sample_number", "children"),
+    State("b_total_samples", "children"),
+    State("col_pH", "children"),
+    State("col_pH_range", "children"),
+    State("value_pH_std", "children"),
+    State("input_temperature", "value"),
+    State("input_salinity", "value"),
+    State("input_comment", "value"),
+)
+def update_sample_info(
+    store_measurements,
+    which_sample,
+    active_tab,
+    b_sample_number,
+    b_total_samples,
+    col_pH,
+    col_pH_range,
+    value_pH_std,
+    input_temperature,
+    input_salinity,
+    input_comment,
+):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_sample_info()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        b_sample_number__new = which_sample
+        b_total_samples__new = len(usd.samples.index)
+        col_pH__new = f"{usd.samples.loc[which_sample].pH:.3f}"
+        col_pH_range__new = f"{usd.samples.loc[which_sample].pH_range:.4f}"
+        value_pH_std__new = f"{usd.samples.loc[which_sample].pH_std:.4f}"
+        input_temperature__new = usd.samples.loc[which_sample].temperature
+        input_salinity__new = usd.samples.loc[which_sample].salinity
+        input_comment__new = usd.samples.loc[which_sample].comments
+        new_sample_info = [
+            test_for_change(b_sample_number, b_sample_number__new),
+            test_for_change(b_total_samples, b_total_samples__new),
+            test_for_change(col_pH, col_pH__new),
+            test_for_change(col_pH_range, col_pH_range__new),
+            test_for_change(value_pH_std, value_pH_std__new),
+            test_for_change(input_temperature, input_temperature__new),
+            test_for_change(input_salinity, input_salinity__new),
+            test_for_change(input_comment, input_comment__new),
+        ]
+        return new_sample_info
+    else:
+        print(" - no update")
+        return [no_update] * 8
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("input_comment", "value"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def update_comments(comment, which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_comments()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        if usd.samples.comments.loc[which_sample] != comment:
+            usd.set_sample(which_sample, comments=comment)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("input_temperature", "value"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def update_temperature(temperature, which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_temperature()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        if float(usd.samples.temperature.loc[which_sample]) != float(temperature):
+            usd.set_sample(which_sample, temperature=temperature)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
+
+
+@callback(
+    Output("store_measurements", "data", allow_duplicate=True),
+    Input("input_salinity", "value"),
+    State("dropdown_sample", "value"),
+    State("store_measurements", "data"),
+    Input("tabs", "active_tab"),
+    prevent_initial_call=True,
+)
+def update_salinity(salinity, which_sample, store_measurements, active_tab):
+    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_salinity()")
+    if store_measurements is not None and active_tab == "tab_measurements":
+        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        if float(usd.samples.salinity.loc[which_sample]) != float(salinity):
+            usd.set_sample(which_sample, salinity=salinity)
+            return usd.measurements.to_dict("records")
+        else:
+            print(" - no update")
+            return no_update
+    else:
+        print(" - no update")
+        return no_update
 
 
 # %%
@@ -431,8 +733,8 @@ upload_box = dcc.Upload(
 current_file_box = dbc.Alert(
     [
         "Current file: ",
-        html.Span(id="current_file"),
-        html.Span(id="current_file_origin"),
+        html.Span(id="span_current_file"),
+        html.Span(id="span_current_file_origin"),
     ],
     id="current_file_status",
 )
@@ -441,7 +743,7 @@ control_buttons = [
         dbc.Col(
             dbc.Button(
                 "Restore last session",
-                id="restore",
+                id="btn_restore",
                 className="btn-secondary col-12",
             ),
             style={"textAlign": "center"},
@@ -452,7 +754,7 @@ control_buttons = [
         dbc.Col(
             dbc.Button(
                 "Auto-detect windows",
-                id="autodetect",
+                id="btn_autodetect",
                 className="btn-success col-12",
             ),
             style={"textAlign": "center"},
@@ -464,7 +766,7 @@ control_buttons = [
             [
                 dbc.Button(
                     "Export to .phroc",
-                    id="export_phroc",
+                    id="btn_export_phroc",
                     className="btn-dark col-12",
                 ),
                 dcc.Download(id="download_phroc"),
@@ -478,7 +780,7 @@ control_buttons = [
             [
                 dbc.Button(
                     "Export to .xlsx",
-                    id="export_excel",
+                    id="btn_export_excel",
                     className="btn-dark col-12",
                 ),
                 dcc.Download(id="download_excel"),
@@ -515,18 +817,17 @@ samples_left = [
         dbc.Col(
             DataTable(
                 id="table_samples",
-                columns=cols,
+                columns=cols_samples,
                 style_table={"height": "650px", "overflowY": "auto"},
                 style_cell={"height": "auto"},
                 style_cell_conditional=[
-                    # {"if": {"column_id": "sample_name"}, "width": "30%"},
-                    # {"if": {"column_id": "temperature"}, "width": "15%"},
-                    # {"if": {"column_id": "salinity"}, "width": "15%"},
-                    # {"if": {"column_id": "pH"}, "width": "20%"},
                     {"if": {"column_id": col_id}, "text-align": "left"}
                     for col_id in ["sample_name", "comments"]
                 ]
-                + [{"if": {"column_id": "txt_n_measurements"}, "text-align": "center"}],
+                + [
+                    {"if": {"column_id": col_id}, "text-align": "center"}
+                    for col_id in ["txt_n_measurements", "txt_is_tris"]
+                ],
                 style_data_conditional=[
                     {
                         "if": {
@@ -583,6 +884,172 @@ samples_right = [
         )
     )
 ]
+info_measurements = dbc.Alert(
+    [
+        dcc.Dropdown(id="dropdown_sample", clearable=False),
+        dbc.Row(
+            [
+                dbc.Col(
+                    "Sample",
+                    style={"textAlign": "right"},
+                    width=4,
+                ),
+                dbc.Col(
+                    html.Span(
+                        [
+                            html.B("0", id="b_sample_number"),
+                            " of ",
+                            html.B("0", id="b_total_samples"),
+                        ],
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    "pH",
+                    style={"textAlign": "right"},
+                ),
+                dbc.Col(id="col_pH", style={"fontWeight": "bold"}),
+            ],
+            className="mt-2",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    "Temperature / °C",
+                    style={"textAlign": "right"},
+                    width=4,
+                ),
+                dbc.Col(
+                    dcc.Input(
+                        id="input_temperature",
+                        type="number",
+                        style={"width": "100%"},
+                        debounce=True,
+                    ),
+                    # style={"fontWeight": "bold"},
+                    width=3,
+                ),
+                dbc.Col(
+                    "Range",
+                    style={"textAlign": "right"},
+                ),
+                dbc.Col(
+                    id="col_pH_range",
+                    style={"fontWeight": "bold"},
+                ),
+            ],
+            align="center",
+            className="mt-2",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    "Salinity",
+                    style={"textAlign": "right"},
+                    width=4,
+                ),
+                dbc.Col(
+                    dcc.Input(
+                        id="input_salinity",
+                        type="number",
+                        min=0,
+                        style={"width": "100%"},
+                        debounce=True,
+                    ),
+                    # style={"fontWeight": "bold"},
+                    width=3,
+                ),
+                dbc.Col(
+                    "S.D.",
+                    style={"textAlign": "right"},
+                ),
+                dbc.Col(
+                    id="value_pH_std",
+                    style={"fontWeight": "bold"},
+                ),
+            ],
+            align="center",
+            className="mt-2",
+        ),
+        dbc.Row(
+            dbc.Col(
+                dcc.Input(
+                    id="input_comment",
+                    style={"width": "100%"},
+                    placeholder="Comments",
+                    debounce=True,
+                )
+            ),
+            className="mt-3",
+        ),
+    ],
+    color="info",
+)
+table_measurements = DataTable(
+    id="table_measurements",
+)
+tab_measurements = dbc.Container(
+    [
+        dbc.Row(
+            dbc.Col(
+                dcc.Graph(id="fig_measurements"),
+                width={"size": 6, "offset": 3},
+            )
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dbc.ButtonGroup(
+                        [
+                            dbc.Button(
+                                "│←",
+                                color="info",
+                                outline=True,
+                                id="move_first",
+                            ),
+                            dbc.Button(
+                                "←",
+                                color="info",
+                                outline=True,
+                                id="move_previous",
+                            ),
+                        ],
+                        size="lg",
+                    ),
+                    width={"size": 1, "offset": 3},
+                ),
+                dbc.Col(info_measurements, width=4),
+                dbc.Col(
+                    dbc.ButtonGroup(
+                        [
+                            dbc.Button(
+                                "→",
+                                color="info",
+                                outline=True,
+                                id="move_next",
+                            ),
+                            dbc.Button(
+                                "→│",
+                                color="info",
+                                outline=True,
+                                id="move_last",
+                            ),
+                        ],
+                        size="lg",
+                    ),
+                    width=1,
+                ),
+            ]
+        ),
+        dbc.Row(
+            dbc.Col(
+                table_measurements,
+                width={"size": 6, "offset": 3},
+            ),
+        ),
+    ],
+    fluid=True,
+)
 
 app.layout = html.Div(
     [
@@ -599,12 +1066,15 @@ app.layout = html.Div(
                         fluid=True,
                     ),
                     label="Samples",
+                    tab_id="tab_samples",
                 ),
                 dbc.Tab(
-                    "Tab 2",
+                    tab_measurements,
                     label="Measurements",
+                    tab_id="tab_measurements",
                 ),
             ],
+            id="tabs",
         ),
         dcc.Store(id="store_measurements"),
         dcc.Store(id="store_settings"),

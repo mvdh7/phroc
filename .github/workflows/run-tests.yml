@@ -2,6 +2,7 @@ name: Tests
 on:
   push:
     paths:
+      - .github/run-tests.yml
       - phroc_run.py
       - phroc/**
       - tests/**

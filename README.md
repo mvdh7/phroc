@@ -26,5 +26,6 @@ To cite the most recent version:
 
 Please adjust the version number and DOI to match what you used:
 
+  * v0.3 (21 January 2025): [doi:10.5281/zenodo.14713820](https://doi.org/10.5281/zenodo.14713820)
   * v0.2 (28 October 2024): [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573)
   * v0.1 (21 October 2024): [doi:10.5281/zenodo.13961238](https://doi.org/10.5281/zenodo.13961238)

@@ -12,19 +12,23 @@
 ## Installation
 
     conda install conda-forge::phroc
-    pip install phroc
+    pip install phroc[gui]
+
+Installing without the `gui` option in pip will allow you to open .phroc files but not run the app.
 
 ## Usage
 
     phroc
 
-## Citation
+Then navigate your browser to [localhost:8050](http://localhost:8050) and read the Instructions tab in the app.
+
+## Citation / DOIs
 
 To cite the most recent version:
 
-> Humphreys, M. P. (2024). pHroc: GUI for processing spectrophotometric pH data (v0.2).  *Zenodo*.  [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573).
+> Humphreys, M. P. (2025). pHroc: GUI for processing spectrophotometric pH data.  *Zenodo*.  [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573).
 
-Please adjust the version number and DOI to match what you used:
+Please state the version number and update the date and DOI to match what you used:
 
   * v0.3 (21 January 2025): [doi:10.5281/zenodo.14713820](https://doi.org/10.5281/zenodo.14713820)
   * v0.2 (28 October 2024): [doi:10.5281/zenodo.14001573](https://doi.org/10.5281/zenodo.14001573)

@@ -1822,8 +1822,5 @@ def create_phroc():
         ]
     )
     app.title = f"pHroc v{__version__}"
-    return app
-
-
-if __name__ == "__main__":
-    create_phroc().run()
+    if __name__ == "__main__":
+        app.run()

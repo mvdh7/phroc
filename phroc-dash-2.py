@@ -11,9 +11,9 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback, ctx, dcc, html, no_update
 from dash.dash_table import DataTable
-from dash_extensions import Keyboard
 from plotly.subplots import make_subplots
 
+# from dash_extensions import Keyboard
 from phroc import (
     UpdatingSummaryDataset,
     read_agilent_pH,
@@ -1020,13 +1020,13 @@ def split_sample(
         return no_update, no_update, no_update
 
 
-@callback(
-    Input("keyboard", "keydown"),
-)
-def print_keypress(keydown):
-    if keydown is not None:
-        key = keydown.get("key", "")
-        print(key)
+# @callback(
+#     Input("keyboard", "keydown"),
+# )
+# def print_keypress(keydown):
+#     if keydown is not None:
+#         key = keydown.get("key", "")
+#         print(key)
 
 
 # TODO use the above in get_samples_table_user_changes() to deal with the click-off
@@ -1817,7 +1817,7 @@ app.layout = html.Div(
         dcc.Store(id="store_measurements"),
         dcc.Store(id="store_settings"),
         dcc.Store(id="store_split_count", data=0),
-        Keyboard(id="keyboard"),
+        # Keyboard(id="keyboard"),
     ]
 )
 app.title = f"pHroc v{__version__}"

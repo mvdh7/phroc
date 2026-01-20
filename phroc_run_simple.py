@@ -1,6 +1,4 @@
-from phroc.app import create_phroc
+from phroc.app import run
 
 
-app = create_phroc()
-if __name__ == "__main__":
-    app.run()
+run()

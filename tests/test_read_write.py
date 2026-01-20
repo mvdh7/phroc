@@ -1,3 +1,4 @@
+# %%
 import os
 import tempfile
 
@@ -22,8 +23,8 @@ def test_write_read_phroc():
     fname = "test_funcs"
     with tempfile.TemporaryDirectory() as tdir:
         data.to_phroc(os.path.join(tdir, fname))
-        assert "{}.phroc".format(fname) in os.listdir(tdir)
-        data_p = phroc.read_phroc(os.path.join(tdir, "{}.phroc".format(fname)))
+        assert f"{fname}.phroc" in os.listdir(tdir)
+        data_p = phroc.read_phroc(os.path.join(tdir, f"{fname}.phroc"))
     assert (data_p.measurements == data.measurements).all().all()
     assert (
         (

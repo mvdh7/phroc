@@ -20,8 +20,9 @@ def read_phroc(filename: str) -> UpdatingSummaryDataset:
             measurements["comments"] = ""
         # Before v0.4 there wasn't an "order" column in `measurements`
         mcols = measurements.columns.copy()
-        measurements["order"] = measurements.index.copy()
-        measurements = measurements[["order", *mcols]]
+        if "order" not in mcols:
+            measurements["order"] = measurements.index.copy()
+            measurements = measurements[["order", *mcols]]
     return UpdatingSummaryDataset(
         measurements,
         **{s: settings[s].iloc[0] for s in settings.columns if s != "pHroc_version"},
@@ -29,8 +30,10 @@ def read_phroc(filename: str) -> UpdatingSummaryDataset:
 
 
 def read_excel(filename: str) -> UpdatingSummaryDataset:
-    measurements = pd.read_excel(filename, sheet_name="Measurements").set_index(
-        "order", drop=False
+    measurements = (
+        pd.read_excel(filename, sheet_name="Measurements")
+        .drop(columns="order.1", errors="ignore")
+        .set_index("order", drop=False)
     )
     try:
         settings = pd.read_excel(filename, sheet_name="Settings")

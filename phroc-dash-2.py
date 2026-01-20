@@ -22,6 +22,7 @@ from phroc import (
     write_excel,
     write_phroc,
 )
+from phroc.meta import __version__
 
 
 df = UpdatingSummaryDataset(
@@ -122,19 +123,15 @@ def plot_samples(store_measurements, active_tab):
             name="pH",
             mode="markers",
             marker_size=10,
+            marker_color="#703be7",
         )
-        # sc_pH_m = go.Scatter(
-        #     x=measurements.xpos[measurements.pH_good],
-        #     y=measurements.pH[measurements.pH_good],
-        #     name="pH",
-        #     mode="lines",
-        # )
         sc_s = go.Scatter(
             x=samples.index,
             y=samples.salinity,
             name="Salinity",
             mode="markers",
             marker_size=10,
+            marker_color="#76cd26",
         )
         sc_t = go.Scatter(
             x=samples.index,
@@ -142,6 +139,7 @@ def plot_samples(store_measurements, active_tab):
             name="Temperature",
             mode="markers",
             marker_size=10,
+            marker_color="#f10c45",
         )
         fig = make_subplots(
             rows=3,
@@ -151,11 +149,11 @@ def plot_samples(store_measurements, active_tab):
         )
         # fig.add_trace(sc_pH_m, row=1, col=1)
         fig.add_trace(sc_pH_s, row=1, col=1)
-        fig.add_trace(sc_s, row=2, col=1)
-        fig.add_trace(sc_t, row=3, col=1)
+        fig.add_trace(sc_t, row=2, col=1)
+        fig.add_trace(sc_s, row=3, col=1)
         fig.update_yaxes(title="pH", row=1, col=1)
-        fig.update_yaxes(title="Salinity", row=2, col=1)
-        fig.update_yaxes(title="Temperature / °C", row=3, col=1)
+        fig.update_yaxes(title="Temperature / °C", row=2, col=1)
+        fig.update_yaxes(title="Salinity", row=3, col=1)
         fig.update_xaxes(
             tickmode="array",
             tickvals=samples.index,
@@ -470,6 +468,7 @@ def plot_measurements(store_measurements, which_sample, active_tab):
             mode="markers",
             name="Used",
             marker_size=20,
+            marker_color="#0485d1",
         )
         sc_bad = go.Scatter(
             x=measurements[Mb].order,
@@ -477,6 +476,8 @@ def plot_measurements(store_measurements, which_sample, active_tab):
             mode="markers",
             name="Ignored",
             marker_size=20,
+            marker_symbol="x",
+            marker_color="#FE2C54",
         )
         fig = go.Figure(
             [sc_good, sc_bad],
@@ -1457,6 +1458,322 @@ tab_measurements = dbc.Container(
     ],
     fluid=True,
 )
+tab_phroc = dbc.Container(
+    dbc.Row(
+        dbc.Col(
+            dbc.Card(
+                [
+                    dbc.CardHeader("About"),
+                    dbc.CardBody(
+                        [
+                            html.H1("pHroc"),
+                            html.H5(f"Version {__version__}"),
+                            html.P(
+                                [
+                                    "GitHub: ",
+                                    html.A(
+                                        "mvdh7/phroc",
+                                        href="https://github.com/mvdh7/phroc",
+                                        target="_blank",
+                                    ),
+                                    html.Br(),
+                                    "Zenodo: ",
+                                    html.A(
+                                        "doi:10.5281/zenodo.13961237",
+                                        href="10.5281/zenodo.13961237",
+                                        target="_blank",
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            width=3,
+        ),
+        justify="center",
+        className="mt-5",
+    ),
+    fluid=True,
+)
+
+
+instructions_samples = dcc.Markdown("""
+#### 1. Import dataset
+
+##### 1a. Directly from the instrument
+
+You should have two `.TXT` files from the spectrophotometer: one containing the
+results and one with the comments, for example:
+
+  * `my_dataset.TXT`
+  * `my_dataset-COMMENTS.TXT`
+
+You can either drag and drop these files into the light blue box at the top
+left, or you can click on the box to open a file browser window.  **Either way,
+you must upload both files together in one go.**
+
+##### 1b. From a previous analysis with pHroc
+
+If you previously worked with a file in pHroc and exported it to either a
+`.phroc` or `.xlsx` file, you can import that file in the same way as above
+(drag and drop or click the box and find the files in the browser).  In this
+case, there will be only one file to upload at a time.
+
+##### 1c. From the internal backup
+
+You can click the grey 'Restore last session' button to reload whatever
+analysis you were doing the last time you used pHroc.  *This will mostly be 
+useful if you accidentally quit pHroc without exporting your work, which can 
+happen if you refresh the web page.*
+
+##### Did it work?
+
+If the upload was successful, you'll see
+
+  * the name of the file in the 'Current file' box, which will turn green
+  rather than yellow;
+  * a summary of the samples measured in the table;
+  * and the mean pH, temperature and salinity for each sample in the figure.
+
+---
+
+#### 2. The samples table
+
+You can directly edit the values in parts of the table.  To do so, click on the
+cell you want to edit, type in the new value, then press `Enter` on your
+keyboard.  *Unfortunately, you cannot edit the value already in there (e.g., to
+change just part of it), you have to write out a complete new value.  And if
+you move off the cell with something other than `Enter`, your change might
+not be saved.*
+
+The columns in the samples table contain the following information:
+
+|||
+| -: | :- |
+| `Name` | The name of the sample.  If you edit a sample name so that it is identical to the sample either directly above or below it, then the two samples will be merged into one. *To revert this, you need to use the Split button on the Measurements tab.*    |
+| `Tris?` | Whether the sample is tris (`Y`) or not (cell empty). |
+| `+20 mCP?` | Whether the sample had a second dose of mCP added (`Y`) or not (cell empty). |
+| `T / °C` | Temperature during the measurement in °C. |
+| `Sal.` | Practical salinity. |
+| `pH` | Mean measured pH for all 'good' measurements of this sample. |
+| `Range(pH)` | The range in measured pH for all 'good' measurements of this sample.  The cell background turns orange if the value is from 0.0010 to 0.0012 and red if it is greater than 0.0012. |
+| `Used / total` | How many measurements are considered 'good' for this sample and used to calculate its mean pH, out of how many measurements in total were made for the sample.  The 'good' measurements are selected in the Measurements tab.  The cell background turns orange if fewer than 3 samples are used and red if zero samples are used. |
+| `Comments` | Analyst comments. |
+
+The columns `pH`, `Range(pH)` and `Used / total` cannot be edited.  Their
+values will update if temperature or salinity are modified and when relevant
+changes are made in the Measurements tab.
+
+---
+
+#### 3. Samples summary figure
+
+On the right is a figure showing the mean values for pH (top), temperature
+(middle) and salinity (bottom) for each sample.  Only measurements marked
+as good are included in the mean pH.  The figure will automatically update to
+reflect the processing that you do.
+
+The sample names are given on the x-axis for the bottom subplot (salinity), but
+you can also see the name of any sample (and its y-axis value) by hovering the
+mouse over a data point on any of the three subplots.
+
+---
+
+#### 4. Auto-detect windows
+
+The main task in pHroc is to select which measurements should be considered
+'good' for each sample.  One approach is to select three (or more) measurements
+that fall within a window of at most 0.001.  Clicking the green 'Auto-detect
+windows' button will automatically detect sets of measurements in the dataset
+that fulfil this criterion, saving you some work.
+
+**You should always manually check the selections made by the auto-detect tool
+by looking through the Measurements tab.**  For some samples, there will be
+different groups of measurements that could meet the criterion, and you need to 
+make sure you agree with the choice made.  For other samples, it may not be
+possible to meet the criterion, so you need to decide what to do.
+
+**Running the auto-detect will overwrite any selections you have already made
+manually.**  If using it, you should run it once at the start, and then go
+through to check and where necessary adjust the results in the Measurements tab
+afterwards.
+
+---
+
+#### 5. Export buttons
+
+When you have finished working with the data file, you can export it to a
+`.phroc` file (for use in Python) or an `.xlsx` file (an Excel spreadsheet)
+with the black buttons at the top centre.  The file should appear in your
+Downloads folder with the name being the same as the imported file.
+""")
+
+instructions_measurements = dcc.Markdown("""
+#### 1. Measurements figure
+
+At the top left is a figure showing the measurements for the selected sample.
+The x-axis shows the measurement number within the complete dataset (this might
+start from zero) and the y-axis the pH for each individual measurement.  Points
+that have been identified as 'good' will be blue circles and those that are
+not, red crosses.
+
+---
+
+#### 2. Measurements table and Move buttons
+
+At the top right, the data from the measurements figure are shown in a table.
+The first column contains checkboxes.  This is how you control which of the
+measurements are 'good': checkboxes that are ticked are 'good' measurements.
+
+Above and below the table are buttons that allow you to reassign individual
+measurements from this sample to a different sample.  These might be needed if
+the wrong sample name was entered in the instrument when doing the
+measurements.
+
+  * 'Move first to previous' reassigns the first measurement for this sample to
+  the previous sample.  *Cannot be used for the first sample in the dataset.*
+  * 'Move last to next' reassigns the last measurement for this sample to the
+  next sample.  *Cannot be used for the last sample in the dataset.*
+
+If there is only one measurement remaining for this sample and you move it,
+then the measurement will be reassigned and this sample will cease to exist.
+To reverse this process, use the Split button.
+
+---
+
+#### 3. Split sample button and slider.
+
+If a set of measurements represents two separate samples, they can be split
+into two samples by using the red 'Split sample' button.  The slider to the
+left of the button should be moved to indicate at which measurement the sample
+should be split.  When the button is pressed, a new sample will be created
+containing the measurements after the slider value, which will be given the
+name of the original sample with `__SPLIT` appended.
+
+The name of the new sample can be modified in the table on the Samples tab.
+If the name is returned to match the original name then the two sets of
+measurements will be merged together again.
+
+---
+
+#### 4. Sample information box
+
+The blue box at the bottom contains information about the currently selected
+sample.  This is the same information as is contained in the table on the
+Samples tab.
+
+At the top there is a dropdown showing the name of the sample currently being
+viewed.  You can click on the dropdown to select a different sample.  If you
+click on the dropdown and start typing a sample name, it works as a search
+function to more quickly find what you are looking for.  *You cannot modify
+the name of a sample from the Measurements tab - do that in the table on the 
+Samples tab.*
+
+The temperature, salinity and comments can be adjusted here - enter the new
+value and then press `Enter`.  Whether the sample is tris or has extra mCP can
+also be adjusted by (de)selecting the corresponding checkbox.
+
+---
+
+#### 5. Navigation arrows
+
+To the left and right of the sample information box are arrows which can be
+clicked to jump to the first, previous, next or last sample in the dataset.
+""")
+
+overview_left = dcc.Markdown("""
+#### What does pHroc do?
+
+  * Convert raw data files from the spectrophotometer into Excel spreadsheets
+  or `.phroc` files for Python analysis.
+  * Identify which measurements are 'good' and should be used to calculate pH
+  for each sample.
+  * Mark which samples are tris and which had extra mCP additions.
+  * Fix mistakes in sample names.
+  * Update the measurement temperature and salinity for each sample and
+  recalculate pH with the new values.
+""")
+overview_right = dcc.Markdown("""
+#### Where do I start?
+
+Your work takes place in the Samples and Measurements tabs.
+
+Usually, you will begin in the Samples tab to import and see an initial
+overview of the dataset, then move to the Measurements tab to analyse each
+sample in detail, and finish off back in the Samples tab to save (export) your
+work.
+""")
+overview_centre = dcc.Markdown("""
+#### Useful to know
+
+When you open a file in pHroc and make changes, this does **not** affect the
+original file that you opened.  You can always go back to the start by
+re-opening the same file again, and you need to export a `.phroc` or `.xlsx`
+file from the Samples tab to save the work you have done.  Even if you open a
+`.phroc` or `.xlsx` file and export it again, it will save into a separate
+file rather than updating the one you opened.
+""")
+
+tab_instructions = dbc.Container(
+    [
+        dbc.Row(
+            dbc.Col(
+                dbc.Card(
+                    [
+                        dbc.CardHeader("Overview"),
+                        dbc.CardBody(
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        overview_left,
+                                        className="mr-5 ml-5",
+                                    ),
+                                    dbc.Col(
+                                        overview_centre,
+                                        className="mr-5 ml-5",
+                                        style={
+                                            "border-left": "1px solid #C6C7C8",
+                                            "border-right": "1px solid #C6C7C8",
+                                        },
+                                    ),
+                                    dbc.Col(
+                                        overview_right,
+                                        className="mr-5 ml-5",
+                                    ),
+                                ],
+                                align="center",
+                            ),
+                        ),
+                    ]
+                )
+            ),
+            className="mt-3",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardHeader("Samples tab"),
+                            dbc.CardBody(instructions_samples),
+                        ],
+                    ),
+                ),
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardHeader("Measurements tab"),
+                            dbc.CardBody(instructions_measurements),
+                        ],
+                    ),
+                ),
+            ],
+            className="mt-3 mb-3",
+        ),
+    ],
+    fluid=True,
+)
 
 app.layout = html.Div(
     [
@@ -1474,11 +1791,25 @@ app.layout = html.Div(
                     ),
                     label="Samples",
                     tab_id="tab_samples",
+                    labelClassName="text-primary",
                 ),
                 dbc.Tab(
                     tab_measurements,
                     label="Measurements",
                     tab_id="tab_measurements",
+                    labelClassName="text-primary",
+                ),
+                dbc.Tab(
+                    tab_instructions,
+                    label="Instructions",
+                    tab_id="tab_instructions",
+                    labelClassName="text-info",
+                ),
+                dbc.Tab(
+                    tab_phroc,
+                    label=f"pHroc v{__version__}",
+                    tab_id="tab_phroc",
+                    labelClassName="text-secondary",
                 ),
             ],
             id="tabs",
@@ -1489,5 +1820,6 @@ app.layout = html.Div(
         Keyboard(id="keyboard"),
     ]
 )
+app.title = f"pHroc v{__version__}"
 if __name__ == "__main__":
     app.run(debug=True)

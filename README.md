@@ -5,7 +5,7 @@
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/phroc.svg)](https://anaconda.org/conda-forge/phroc)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.13961237-informational)](https://doi.org/10.5281/zenodo.13961237)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 > pHroc is a GUI tool for processing spectrophotometric pH measurement data from a Cary Agilent spectrophotometer.
 

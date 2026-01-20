@@ -40,7 +40,7 @@ gui = [
 ]
 
 [project.scripts]
-phroc = "phroc:phroc_run"
+phroc = "phroc.app:create_phroc"
 
 [tool.setuptools.packages.find]
 include = ["phroc*"]

@@ -25,15 +25,6 @@ from phroc import (
 from phroc.meta import __version__
 
 
-df = UpdatingSummaryDataset(
-    read_agilent_pH(
-        "tests/data/2024-04-27-CTD1.TXT",
-        dye_intercept=0,
-        dye_slope=0,
-        find_windows_auto=False,
-        pH_equation="NIOZ",
-    )
-)
 cols_samples = [
     {
         "id": "sample_name",

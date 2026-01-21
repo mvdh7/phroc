@@ -46,7 +46,9 @@ def test_write_read_excel():
         data_p = phroc.read_excel(os.path.join(tdir, "{}.xlsx".format(fname)))
     for c in data_p.measurements.columns:
         if data.measurements[c].dtype == float:
-            assert np.all(np.isclose(data_p.measurements[c], data.measurements[c]))
+            assert np.all(
+                np.isclose(data_p.measurements[c], data.measurements[c])
+            )
         else:
             assert (data_p.measurements[c] == data.measurements[c]).all()
     for c in data_p.samples.columns:
@@ -66,7 +68,9 @@ def test_other_files():
         "tests/data/240827-RWS-BATCH23-PH.TXT",
         "tests/data/241010-DY172-JETTY.TXT",
     ]:
-        data = phroc.UpdatingSummaryDataset("tests/data/240827-RWS-BATCH23-PH.TXT")
+        data = phroc.UpdatingSummaryDataset(
+            "tests/data/240827-RWS-BATCH23-PH.TXT"
+        )
         assert isinstance(data, phroc.UpdatingSummaryDataset)
 
 

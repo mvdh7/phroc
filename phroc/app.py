@@ -9,7 +9,17 @@ import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, State, callback, ctx, dcc, html, no_update
+from dash import (
+    Dash,
+    Input,
+    Output,
+    State,
+    callback,
+    ctx,
+    dcc,
+    html,
+    no_update,
+)
 from dash.dash_table import DataTable
 from plotly.subplots import make_subplots
 
@@ -175,10 +185,20 @@ def plot_samples(store_measurements, active_tab):
 )
 def update_current_file(filenames, contents):
     try:
-        print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_current_file()")
+        print(
+            f"{list(ctx.triggered_prop_ids.keys())[0]} > update_current_file()"
+        )
     except IndexError:
         print(f"{ctx.triggered_id} > update_current_file()")
-    failed = "none", no_update, no_update, "alert-warning", "", no_update, no_update
+    failed = (
+        "none",
+        no_update,
+        no_update,
+        "alert-warning",
+        "",
+        no_update,
+        no_update,
+    )
     if contents is not None:
         if len(contents) == 1:
             content_type, content_string = contents[0].split(",")
@@ -238,7 +258,10 @@ def update_current_file(filenames, contents):
             ],
             "alert-success",
             "",
-            [{"value": i, "label": v} for i, v in usd.samples.sample_name.items()],
+            [
+                {"value": i, "label": v}
+                for i, v in usd.samples.sample_name.items()
+            ],
             1,
         )
     else:
@@ -283,7 +306,9 @@ def get_samples_table_user_changes(
         and active_tab == "tab_samples"
     ):
         samples_df = pd.DataFrame.from_records(samples_data)
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         col = active_cell["column_id"]
         r = active_cell["row"]
         if samples_df.iloc[r][col] == usd.samples.iloc[r][col]:
@@ -324,7 +349,9 @@ def get_samples_table_user_changes(
 def autodetect_windows(n_clicks, store_measurements):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > autodetect_windows()")
     if store_measurements is not None:
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         usd.find_windows(cutoff=0.001, minimum_values=3)
         return usd.measurements.to_dict("records"), None
     else:
@@ -343,7 +370,9 @@ def update_backup(store_measurements, current_file):
         Path(phroc_path).mkdir(exist_ok=True)
         write_phroc(
             str(Path(f"{phroc_path}/last_session.phroc")),
-            UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements)),
+            UpdatingSummaryDataset(
+                pd.DataFrame.from_records(store_measurements)
+            ),
         )
         with open(Path(f"{phroc_path}/last_filename.txt"), "w") as f:
             f.write(current_file)
@@ -378,7 +407,10 @@ def restore_session(n_clicks):
             ],
             "alert-success",
             " (from backup)",
-            [{"value": i, "label": v} for i, v in usd.samples.sample_name.items()],
+            [
+                {"value": i, "label": v}
+                for i, v in usd.samples.sample_name.items()
+            ],
             1,
         )
     except FileNotFoundError as e:
@@ -435,7 +467,9 @@ def download_excel(n_clicks, current_file, store_measurements):
             filename = current_file[:-6] + ".xlsx"
         elif current_file.lower().endswith(".xlsx"):
             filename = current_file
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         with tempfile.TemporaryDirectory() as tdir:
             tpath = Path(f"{tdir}/{filename}")
             write_excel(str(tpath), usd)
@@ -455,7 +489,9 @@ def download_excel(n_clicks, current_file, store_measurements):
 def plot_measurements(store_measurements, which_sample, active_tab):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > plot_measurements()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         # sample = usd.samples.loc[which_sample]
         measurements = usd.measurements
         M = measurements.order_analysis == which_sample
@@ -585,7 +621,9 @@ def update_dropdown(
 ):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_dropdown()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         which_sample__new = min(which_sample, len(usd.samples.sample_name))
         # ^ in case samples were merged and which_sample is now higher than possible
         dropdown_options__new = []
@@ -597,7 +635,9 @@ def update_dropdown(
                 dropdown_options__changed |= dropdown_options[n]["label"] != lb
             except IndexError:
                 dropdown_options__changed = True
-        dropdown_options__changed |= len(dropdown_options) != len(dropdown_options__new)
+        dropdown_options__changed |= len(dropdown_options) != len(
+            dropdown_options__new
+        )
         if dropdown_options__changed:
             dropdown_options__return = dropdown_options__new
         else:
@@ -653,7 +693,9 @@ def update_sample_info(
 ):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_sample_info()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         b_sample_number__new = which_sample
         b_total_samples__new = len(usd.samples.index)
         col_pH__new = f"{usd.samples.loc[which_sample].pH:.3f}"
@@ -707,7 +749,9 @@ def update_sample_info(
 def update_comments(comment, which_sample, store_measurements, active_tab):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_comments()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         if usd.samples.comments.loc[which_sample] != comment:
             usd.set_sample(which_sample, comments=comment)
             return usd.measurements.to_dict("records")
@@ -727,11 +771,17 @@ def update_comments(comment, which_sample, store_measurements, active_tab):
     Input("tabs", "active_tab"),
     prevent_initial_call=True,
 )
-def update_temperature(temperature, which_sample, store_measurements, active_tab):
+def update_temperature(
+    temperature, which_sample, store_measurements, active_tab
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_temperature()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
-        if float(usd.samples.temperature.loc[which_sample]) != float(temperature):
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
+        if float(usd.samples.temperature.loc[which_sample]) != float(
+            temperature
+        ):
             usd.set_sample(which_sample, temperature=temperature)
             return usd.measurements.to_dict("records")
         else:
@@ -753,7 +803,9 @@ def update_temperature(temperature, which_sample, store_measurements, active_tab
 def update_salinity(salinity, which_sample, store_measurements, active_tab):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_salinity()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         if float(usd.samples.salinity.loc[which_sample]) != float(salinity):
             usd.set_sample(which_sample, salinity=salinity)
             return usd.measurements.to_dict("records")
@@ -773,10 +825,14 @@ def update_salinity(salinity, which_sample, store_measurements, active_tab):
     Input("tabs", "active_tab"),
     prevent_initial_call=True,
 )
-def update_is_tris(check_is_tris, which_sample, store_measurements, active_tab):
+def update_is_tris(
+    check_is_tris, which_sample, store_measurements, active_tab
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_is_tris()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         is_tris = len(check_is_tris) == 1
         if is_tris != usd.samples.is_tris.loc[which_sample]:
             usd.set_sample(which_sample, is_tris=is_tris)
@@ -797,10 +853,14 @@ def update_is_tris(check_is_tris, which_sample, store_measurements, active_tab):
     Input("tabs", "active_tab"),
     prevent_initial_call=True,
 )
-def update_extra_mcp(check_extra_mcp, which_sample, store_measurements, active_tab):
+def update_extra_mcp(
+    check_extra_mcp, which_sample, store_measurements, active_tab
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_extra_mcp()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         extra_mcp = len(check_extra_mcp) == 1
         if extra_mcp != usd.samples.extra_mcp.loc[which_sample]:
             usd.set_sample(which_sample, extra_mcp=extra_mcp)
@@ -821,9 +881,13 @@ def update_extra_mcp(check_extra_mcp, which_sample, store_measurements, active_t
     Input("tabs", "active_tab"),
 )
 def update_table_measurements(which_sample, store_measurements, active_tab):
-    print(f"{list(ctx.triggered_prop_ids.keys())[0]} > update_table_measurements()")
+    print(
+        f"{list(ctx.triggered_prop_ids.keys())[0]} > update_table_measurements()"
+    )
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         M = usd.measurements.order_analysis == which_sample
         return usd.measurements[M].to_dict("records"), np.nonzero(
             usd.measurements[M].pH_good
@@ -841,10 +905,14 @@ def update_table_measurements(which_sample, store_measurements, active_tab):
     State("dropdown_sample", "value"),
     prevent_initial_call=True,
 )
-def change_pH_good(selected_rows, store_measurements, active_tab, which_sample):
+def change_pH_good(
+    selected_rows, store_measurements, active_tab, which_sample
+):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > change_pH_good()")
     if store_measurements is not None and active_tab == "tab_measurements":
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         M = usd.measurements.order_analysis == which_sample
         selected_rows_prev = np.nonzero(usd.measurements[M].pH_good)[0]
         if len(selected_rows) != len(selected_rows_prev):
@@ -875,7 +943,9 @@ def move_measurement(direction, which_sample, store_measurements):
         m_ix = 0  # the iloc in the subset of the measurements table to move (first)
     elif direction == 1:
         neither_first_nor_last = s_new < usd.samples.shape[0]
-        m_ix = -1  # the iloc in the subset of the measurements table to move (last)
+        m_ix = (
+            -1
+        )  # the iloc in the subset of the measurements table to move (last)
     if neither_first_nor_last:
         M = usd.measurements.order_analysis == s
         m = usd.measurements[M].index[m_ix]  # the measurement to move
@@ -998,9 +1068,15 @@ def split_sample(
     split_count,
 ):
     print(f"{list(ctx.triggered_prop_ids.keys())[0]} > split_sample()")
-    if store_measurements is not None and split_at > split_min and split_at < split_max:
+    if (
+        store_measurements is not None
+        and split_at > split_min
+        and split_at < split_max
+    ):
         s = which_sample
-        usd = UpdatingSummaryDataset(pd.DataFrame.from_records(store_measurements))
+        usd = UpdatingSummaryDataset(
+            pd.DataFrame.from_records(store_measurements)
+        )
         M = usd.measurements.order_analysis == s
         Mn = M & (usd.measurements.order > split_at)  # the new sample
         # Update by renaming - note that if the following sample already ends with
@@ -1321,7 +1397,9 @@ info_measurements = dbc.Alert(
                     width=6,
                 ),
                 dbc.Col(
-                    dcc.Checklist([" +20 mCP?"], id="check_extra_mcp", value=[]),
+                    dcc.Checklist(
+                        [" +20 mCP?"], id="check_extra_mcp", value=[]
+                    ),
                     style={"textAlign": "center"},
                 ),
             ],

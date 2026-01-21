@@ -36,6 +36,7 @@ dynamic = ["version"]
 gui = [
     "dash",
     "dash_bootstrap_components",
+    "gunicorn",
     "plotly",
 ]
 

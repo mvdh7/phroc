@@ -156,6 +156,7 @@ def read_agilent_pH(
     if not measurements.order.dtype == int:
         measurements = measurements[measurements.order.str.find("-") == -1]
         measurements = measurements[measurements.order.str.find("#") == -1]
+        measurements["order"] = measurements.order.astype(int)
     measurements = measurements.set_index("order", drop=False)
     measurements["sample_name"] = measurements.sample_name.where(
         measurements.sample_name.notnull(), ""
@@ -174,6 +175,7 @@ def read_agilent_pH(
     if not pH_b.order.dtype == int:
         pH_b = pH_b[pH_b.order.str.find("-") == -1]
         pH_b = pH_b[pH_b.order.str.find("#") == -1]
+        pH_b["order"] = pH_b.order.astype(int)
     pH_b = pH_b.set_index("order")
     pH_b["sample_name"] = pH_b.sample_name.where(
         pH_b.sample_name.notnull(), ""
@@ -215,6 +217,7 @@ def read_agilent_pH(
     if not pH_c.order.dtype == int:
         pH_c = pH_c[pH_c.order.str.find("-") == -1]
         pH_c = pH_c[pH_c.order.str.find("#") == -1]
+        pH_c["order"] = pH_c.order.astype(int)
     pH_c = pH_c.set_index("order")
     pH_c["sample_name"] = pH_c.sample_name.where(
         pH_c.sample_name.notnull(), ""

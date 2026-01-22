@@ -1718,7 +1718,7 @@ To reverse this process, use the Split button.
 
 ---
 
-#### 3. Split sample button and slider.
+#### 3. Split sample button and slider
 
 If a set of measurements represents two separate samples, they can be split
 into two samples by using the red 'Split sample' button.  The slider to the

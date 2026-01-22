@@ -67,10 +67,9 @@ def test_other_files():
     for filename in [
         "tests/data/240827-RWS-BATCH23-PH.TXT",
         "tests/data/241010-DY172-JETTY.TXT",
+        "tests/data/250325-RWS-BATCH25-PH.TXT",
     ]:
-        data = phroc.UpdatingSummaryDataset(
-            "tests/data/240827-RWS-BATCH23-PH.TXT"
-        )
+        data = phroc.UpdatingSummaryDataset(filename)
         assert isinstance(data, phroc.UpdatingSummaryDataset)
 
 

@@ -1,4 +1,4 @@
 from phroc import app
 
 
-test = app.create_phroc()
+phroc_app = app.create_phroc()

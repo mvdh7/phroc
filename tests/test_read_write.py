@@ -1,3 +1,4 @@
+# %%
 import os
 import tempfile
 
@@ -22,8 +23,8 @@ def test_write_read_phroc():
     fname = "test_funcs"
     with tempfile.TemporaryDirectory() as tdir:
         data.to_phroc(os.path.join(tdir, fname))
-        assert "{}.phroc".format(fname) in os.listdir(tdir)
-        data_p = phroc.read_phroc(os.path.join(tdir, "{}.phroc".format(fname)))
+        assert f"{fname}.phroc" in os.listdir(tdir)
+        data_p = phroc.read_phroc(os.path.join(tdir, f"{fname}.phroc"))
     assert (data_p.measurements == data.measurements).all().all()
     assert (
         (
@@ -45,7 +46,9 @@ def test_write_read_excel():
         data_p = phroc.read_excel(os.path.join(tdir, "{}.xlsx".format(fname)))
     for c in data_p.measurements.columns:
         if data.measurements[c].dtype == float:
-            assert np.all(np.isclose(data_p.measurements[c], data.measurements[c]))
+            assert np.all(
+                np.isclose(data_p.measurements[c], data.measurements[c])
+            )
         else:
             assert (data_p.measurements[c] == data.measurements[c]).all()
     for c in data_p.samples.columns:
@@ -64,8 +67,9 @@ def test_other_files():
     for filename in [
         "tests/data/240827-RWS-BATCH23-PH.TXT",
         "tests/data/241010-DY172-JETTY.TXT",
+        "tests/data/250325-RWS-BATCH25-PH.TXT",
     ]:
-        data = phroc.UpdatingSummaryDataset("tests/data/240827-RWS-BATCH23-PH.TXT")
+        data = phroc.UpdatingSummaryDataset(filename)
         assert isinstance(data, phroc.UpdatingSummaryDataset)
 
 

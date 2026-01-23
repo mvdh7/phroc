@@ -43,6 +43,7 @@ def read_agilent_pH(
     filename: str,
     dye_intercept: float = 0,
     dye_slope: float = 0,
+    filename_comments: str = None,
     find_windows_auto: bool = False,
     pH_equation: str = "NIOZ",
 ) -> pd.DataFrame:
@@ -58,6 +59,9 @@ def read_agilent_pH(
         Intercept of the dye correction (SOP 6b eq. 9), by default 0.
     dye_slope : float, optional
         Slope of the dye correction (SOP 6b eq. 9), by default 0.
+    filename_comments : str, optional
+        Filename for the comments file, if it's named differently than
+        described above for `filename`.
     find_windows_auto : bool, optional
         Whether to automatically find windows containing good measurements, by
         default False.
@@ -124,6 +128,8 @@ def read_agilent_pH(
         if is_table and line.strip() == "":
             table_end.append(i)
             is_table = False
+    # Deal with long files that have annoying extra header rows
+    table_start = table_start[:: int(len(table_start) / 2)]
     # Import the data tables
     pH_renamer = {
         "#": "order",
@@ -138,43 +144,51 @@ def read_agilent_pH(
     }
     ts = table_start[0]
     te = table_end[0]
-    measurements = (
-        pd.read_fwf(
-            filename,
-            encoding="utf-16",
-            engine="python",
-            skiprows=[*range(ts), ts + 1],
-            skipfooter=len(lines) - te,
-            widths=[11, 17, 15, 13, 13, 13, 14],
-        )
-        .rename(columns=pH_renamer)
-        .set_index("order")
-    )
+    measurements = pd.read_fwf(
+        filename,
+        encoding="utf-16",
+        engine="python",
+        skiprows=[*range(ts), ts + 1],
+        skipfooter=len(lines) - te,
+        widths=[11, 17, 15, 13, 13, 13, 14],
+    ).rename(columns=pH_renamer)
+    # Deal with long files that have annoying extra header rows
+    if not measurements.order.dtype == int:
+        measurements = measurements[measurements.order.str.find("-") == -1]
+        measurements = measurements[measurements.order.str.find("#") == -1]
+        measurements["order"] = measurements.order.astype(int)
+    measurements = measurements.set_index("order", drop=False)
     measurements["sample_name"] = measurements.sample_name.where(
         measurements.sample_name.notnull(), ""
     )
     ts = table_start[1]
     te = table_end[1]
-    pH_b = (
-        pd.read_fwf(
-            filename,
-            encoding="utf-16",
-            engine="python",
-            skiprows=[*range(ts), ts + 1],
-            skipfooter=len(lines) - te,
-            widths=[11, 17, 15, 14],
-        )
-        .rename(columns=pH_renamer)
-        .set_index("order")
+    pH_b = pd.read_fwf(
+        filename,
+        encoding="utf-16",
+        engine="python",
+        skiprows=[*range(ts), ts + 1],
+        skipfooter=len(lines) - te,
+        widths=[11, 17, 15, 14],
+    ).rename(columns=pH_renamer)
+    # Deal with long files that have annoying extra header rows
+    if not pH_b.order.dtype == int:
+        pH_b = pH_b[pH_b.order.str.find("-") == -1]
+        pH_b = pH_b[pH_b.order.str.find("#") == -1]
+        pH_b["order"] = pH_b.order.astype(int)
+    pH_b = pH_b.set_index("order")
+    pH_b["sample_name"] = pH_b.sample_name.where(
+        pH_b.sample_name.notnull(), ""
     )
-    pH_b["sample_name"] = pH_b.sample_name.where(pH_b.sample_name.notnull(), "")
     for k, v in pH_b.items():
         if k == "sample_name":
             assert (measurements.sample_name == v).all()
         else:
             measurements[k] = v
-    #  Import Comments file to get non-truncated sample_name
-    with open(filename.replace(".TXT", "-COMMENTS.TXT"), "rb") as f:
+    # Import Comments file to get non-truncated sample_name
+    if filename_comments is None:
+        filename_comments = filename.replace(".TXT", "-COMMENTS.TXT")
+    with open(filename_comments, "rb") as f:
         lines = f.read().decode("utf-16").splitlines()
     # Get positions of data tables in Comments file
     is_table = False
@@ -187,23 +201,27 @@ def read_agilent_pH(
         if is_table and line.strip() == "":
             table_end.append(i)
             is_table = False
-
+    # Deal with long files that have annoying extra header rows
+    table_start = table_start[:: int(len(table_start) / 3)]
     # Import middle table
     ts = table_start[1]
     te = table_end[1]
-    pH_c = (
-        pd.read_fwf(
-            filename.replace(".TXT", "-COMMENTS.TXT"),
-            encoding="utf-16",
-            engine="python",
-            skiprows=[*range(ts), ts + 1],
-            skipfooter=len(lines) - te,
-            widths=[11, 23],
-        )
-        .rename(columns=pH_renamer)
-        .set_index("order")
+    pH_c = pd.read_fwf(
+        filename_comments,
+        encoding="utf-16",
+        engine="python",
+        skiprows=[*range(ts), ts + 1],
+        skipfooter=len(lines) - te,
+        widths=[11, 23],
+    ).rename(columns=pH_renamer)
+    if not pH_c.order.dtype == int:
+        pH_c = pH_c[pH_c.order.str.find("-") == -1]
+        pH_c = pH_c[pH_c.order.str.find("#") == -1]
+        pH_c["order"] = pH_c.order.astype(int)
+    pH_c = pH_c.set_index("order")
+    pH_c["sample_name"] = pH_c.sample_name.where(
+        pH_c.sample_name.notnull(), ""
     )
-    pH_c["sample_name"] = pH_c.sample_name.where(pH_c.sample_name.notnull(), "")
     # Update sample_name and append
     for i, row in measurements.iterrows():
         assert pH_c.sample_name.loc[i].startswith(row.sample_name)
@@ -221,6 +239,16 @@ def read_agilent_pH(
                 "dye_slope": dye_slope,
             }
         )
+    for col in [
+        "dilution_factor",
+        "temperature",
+        "salinity",
+        "pH_instrument",
+        "absorbance_578",
+        "absorbance_434",
+        "absorbance_730",
+    ]:
+        measurements[col] = measurements[col].astype(float)
     measurements["pH"] = pH_equations[pH_equation](
         measurements.absorbance_578,
         measurements.absorbance_434,

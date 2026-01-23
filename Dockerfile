@@ -1,3 +1,5 @@
+# docker build --platform linux/amd64,linux/arm64 -t mvdh89/phroc .
+
 # syntax=docker/dockerfile:1
 
 # Comments are provided throughout this file to help you get started.

@@ -11,16 +11,20 @@
 
 ## Installation
 
+To install locally:
+
     conda install conda-forge::phroc
     pip install phroc[gui]
 
 Installing without the `gui` option in pip will allow you to open .phroc files but not run the app.
 
+Alternatively, pull the Docker container: [mvdh89/phroc](https://hub.docker.com/repository/docker/mvdh89/phroc/general).
+
 ## Usage
 
     phroc
 
-Then navigate your browser to [localhost:8050](http://localhost:8050) and read the Instructions tab in the app.
+Then navigate your browser to the appropriate port on localhost and read the Instructions tab in the app.
 
 ## Citation / DOIs
 
